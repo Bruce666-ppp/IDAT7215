@@ -1,0 +1,2 @@
+# Keep the training dataset bytes used by the recorded SHA-256 fingerprints.
+data/synthetic_v2/** -text

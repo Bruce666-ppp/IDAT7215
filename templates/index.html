@@ -1,0 +1,232 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PawthFinder · 找到适合彼此的陪伴</title><link rel="stylesheet" href="./static/style.css"><link rel="stylesheet" href="./static/desktop-pet.css"><link rel="stylesheet" href="./static/community.css"><script defer src="./static/app.js"></script><script defer src="./static/lab.js"></script><script defer src="./static/community.js"></script><script type="module" src="./static/desktop-pet.js"></script></head>
+<body{% if pages_preview %} data-pages-preview{% endif %}><nav class="site-nav"><a class="wordmark" href="./">PawthFinder<span>宠物生活手册</span></a><div class="app-nav" aria-label="功能导航"><button type="button" data-view="home" aria-pressed="true">首页</button><button type="button" data-view="catalog" aria-pressed="false">认识伙伴</button><button type="button" data-view="match" aria-pressed="false">选宠问卷</button><button type="button" data-view="compare" aria-pressed="false">我的清单 <span id="compare-count">0</span></button><button type="button" data-view="community" aria-pressed="false">社区分享</button><button type="button" data-view="model" aria-pressed="false">模型实验室</button></div></nav>
+{% if pages_preview %}<p class="toast small">在线演示。运行源码中的 app.py 可提交问卷、发布社区动态、上传 PDF 和训练模型。</p>{% endif %}
+<section id="view-home" class="view home-view"><header class="home-intro"><div class="intro-copy"><p class="issue">给准备迎接新伙伴的你 / VOL. 01</p><h1>家里，<br>想多一个它。</h1><p class="intro-note">是陪你散步的狗，是占据窗台的猫，<br>还是一个安静的小邻居？<br>先认识它的日常，再想想你的生活。</p><button type="button" id="start-quiz" class="ink-button">从我的生活开始选择 <span>↗</span></button><p class="intro-small">一份关于时间、空间与陪伴的问卷。</p></div><div class="cover-art"><div class="pet-art art-0" role="img" aria-label="手绘猫咪"></div><div class="cover-caption"><span>MEET YOUR EVERYDAY COMPANY</span><p>陪伴这件小事，<br>值得认真想一想。</p></div></div></header>
+<div class="browse-heading"><div><p class="issue">THE LITTLE NEIGHBOURS</p><h2>先打个招呼。</h2></div><p>8 位真实的小邻居，和 1 位幻想伙伴。<br>点开看看，它们各自的生活。</p></div><div id="home-pets" class="home-pets"></div><aside class="home-note"><span>选宠之前</span><p>喜欢是开始。能不能在忙碌、搬家和假期里照顾好它，是更长久的决定。</p><button type="button" id="home-guide">了解自己的照护条件 →</button></aside></section>
+<p class="toast" id="toast" role="status"></p>
+<main id="view-match" class="view" hidden><section class="panel"><div class="section-title"><span>关于你的生活</span><h2>告诉我们你的日常</h2></div>
+<div class="preset-row"><span>演示问卷：</span><button type="button" data-preset="default">标准示例</button><button type="button" data-preset="busy">时间有限</button><button type="button" data-preset="active">户外爱好者</button></div><form id="quiz"><div class="grid">
+<label>可用照护空间（㎡）<input name="space" type="number" min="0" max="500" step="0.5" value="30" required></label>
+<label>每日照护时间（小时）<input name="time" type="number" min="0" max="12" step="0.1" value="2" required></label>
+<label>每月预算（港币）<input name="budget" type="number" min="0" max="10000" step="10" value="1000" required></label>
+<label>可承诺照护期限（年）<input name="years" type="number" min="0" max="30" step="1" value="15" required></label>
+<label>偏好的活动强度<select name="activity"><option value="1">1 · 很安静</option><option value="2">2 · 偶尔活动</option><option value="3" selected>3 · 适中</option><option value="4">4 · 活跃</option><option value="5">5 · 很活跃</option></select></label>
+<label>可接受的噪声<select name="noise"><option value="1">1 · 很低</option><option value="2">2 · 较低</option><option value="3" selected>3 · 适中</option><option value="4">4 · 较高</option><option value="5">5 · 很高</option></select></label>
+<label>愿意承担的清洁护理强度<select name="grooming"><option value="1">1 · 很低</option><option value="2">2 · 较低</option><option value="3" selected>3 · 适中</option><option value="4">4 · 较高</option><option value="5">5 · 很高</option></select></label>
+<label>饲养经验<select name="experience"><option value="0">没有经验</option><option value="1">有一些经验</option><option value="2">经验较丰富</option></select></label>
+</div><div class="checks"><label><input name="pet_allowed" type="checkbox" checked> 居所允许养宠物</label><label><input name="backup" type="checkbox" checked> 已安排外出及紧急替代照护</label><label><input name="allergy" type="checkbox"> 有已知动物相关过敏</label></div>
+<fieldset class="quiz-extra"><legend>作息和照护准备</legend>
+  <div class="grid">
+    <label>工作日连续离家多久（小时）<input name="alone_hours" type="number" min="0" max="16" step="1" value="8" required></label>
+    <label>每月通常有几晚不在家<input name="away_nights" type="number" min="0" max="30" step="1" value="0" required></label>
+  </div>
+  <div class="checks">
+    <label><input name="habitat_control" type="checkbox"> 能布置专门的饲养环境，并定期监测温度</label>
+    <label><input name="live_insects" type="checkbox"> 可以准备和处理活饵昆虫</label>
+  </div>
+</fieldset>
+<p class="small">教学演示：档案阈值为示例设定，并非专业标准。提交后问卷与结果会保存在本机 SQLite 数据库。</p><button id="submit" type="submit"{% if pages_preview %} disabled{% endif %}>看看适合我的伙伴 →</button><p id="error" role="alert"></p></form></section>
+<section class="results" aria-live="polite"><div class="section-title"><span>问卷结果</span><h2>你的匹配结果</h2></div><p id="summary">{% if pages_preview %}运行 app.py 后即可使用随附模型生成推荐。{% else %}完成左侧问卷，看看哪些伙伴可能适合你的日常。{% endif %}</p><div class="result-actions"><button type="button" id="export" class="secondary" disabled>下载推荐报告</button><button type="button" id="scenario-open" class="secondary" disabled>比较条件变化</button></div>
+<div id="scenario-box" class="scenario-box" hidden><h3>如果照护条件改变了呢？</h3><p class="small">以当前显示的推荐问卷为基准，只调整下方三项；模拟不会写入历史。</p><form id="scenario-form"><div class="grid"><label>新月预算（港币）<input id="scenario-budget" type="number" min="0" max="10000" step="10" required></label><label>新每日时间（小时）<input id="scenario-time" type="number" min="0" max="12" step="0.1" required></label><label>新可用空间（㎡）<input id="scenario-space" type="number" min="0" max="500" step="0.5" required></label></div><button type="submit">计算变化</button></form><div id="scenario-result" aria-live="polite"></div><button type="button" id="scenario-apply" class="secondary" hidden>将模拟条件填回问卷</button></div>
+<div id="cards"></div><details id="excluded-panel" hidden><summary>查看未通过规则的宠物及原因</summary><div id="excluded"></div></details></section></main>
+<section class="view full-view" id="view-catalog" hidden>
+  <div class="section-title"><span>认识伙伴</span><h2>先了解，再决定</h2></div>
+  <p>查看 8 类真实宠物的照护档案并加入清单。奶龙是第 9 位幻想伙伴。</p>
+  <div class="filters"><label>搜索宠物<input id="catalog-search" type="search" placeholder="例如：猫、刺猬、守宫"></label><label>月预算上限（港币）<input id="catalog-budget" type="number" min="0" max="10000" value="10000"></label><label>排序方式<select id="catalog-sort"><option value="name">默认顺序</option><option value="budget">预算从低到高</option><option value="time">照护时间从少到多</option></select></label></div>
+  <div class="catalog-layout">
+    <div><p id="catalog-count" class="small" role="status"></p><div id="catalog-grid" class="catalog-grid"></div></div>
+    <aside class="catalog-tools" aria-label="筛选和开销试算">
+      <section class="utility-panel">
+        <h3>快捷筛选</h3>
+        <div class="quick-filters" aria-label="照护条件">
+          <button type="button" data-care-filter="quiet" aria-pressed="false">低噪声</button>
+          <button type="button" data-care-filter="short" aria-pressed="false">每天至多 1 小时</button>
+          <button type="button" data-care-filter="beginner" aria-pressed="false">无经验档案</button>
+        </div>
+        <button id="clear-catalog-filters" type="button" class="text-button">清空筛选</button>
+      </section>
+      <section class="utility-panel">
+        <h3>养宠开销试算</h3>
+        <p class="small">月常规开支可从档案带入。再填入自己预估的设备费和应急储备。</p>
+        <form id="cost-form">
+          <label>选择宠物<select id="cost-pet"></select></label>
+          <label>每月常规开支（港币）<input id="cost-monthly" type="number" min="0" max="100000" step="1" required></label>
+          <label>一次性设备费（港币）<input id="cost-setup" type="number" min="0" max="1000000" step="1" value="0" required></label>
+          <label>应急储备（港币）<input id="cost-reserve" type="number" min="0" max="1000000" step="1" value="0" required></label>
+          <div class="cost-total"><span>首年资金准备</span><output id="cost-total" aria-live="polite">—</output></div>
+        </form>
+      </section>
+    </aside>
+  </div>
+</section>
+<section class="view full-view" id="view-compare" hidden>
+  <div class="section-title"><span>放在一起看看</span><h2>找到适合你的差异</h2></div>
+  <p>最多对比 3 类宠物。预算、时间和空间均为教学档案值。</p>
+  <div class="pet-list-toolbar" id="pet-list-toolbar" hidden>
+    <button type="button" class="secondary" id="pet-visibility">隐藏桌宠</button>
+    <button type="button" class="secondary" id="pet-remove">移除桌宠</button>
+  </div>
+  <p id="pet-load-status" class="small" role="status"></p>
+  <div id="compare-empty" class="empty">还没有加入宠物对比。可从「认识伙伴」或推荐结果中加入。</div>
+  <div id="compare-pets" class="compare-pets"></div>
+  <div id="compare-content"></div>
+  <aside class="desktop-pet" id="desktop-pet" aria-label="3D 桌宠" hidden>
+    <button type="button" class="desktop-pet-stage" id="pet-stage" aria-controls="pet-panel" aria-expanded="false" aria-label="桌宠，点击打开互动，或按住拖动">
+      <span id="pet-canvas" class="pet-canvas"></span>
+      <span class="pet-stage-label" id="pet-stage-label">点击互动 · 拖动位置</span>
+      <span class="pet-effect pet-hearts" id="pet-hearts" aria-hidden="true" hidden><span>♥</span><span>♥</span><span>♥</span></span>
+      <span class="pet-effect pet-zzz" id="pet-zzz" aria-hidden="true" hidden>Zzz</span>
+    </button>
+    <p class="pet-message" id="pet-message" role="status" hidden></p>
+    <div id="pet-panel" class="pet-panel" hidden>
+      <div class="pet-panel-title"><h3 id="pet-name"></h3><button type="button" class="secondary" id="pet-menu-close">收起</button></div>
+      <div class="pet-actions" aria-label="桌宠互动">
+        <button type="button" data-pet-action="pet">抚摸 Pet</button>
+        <button type="button" data-pet-action="feed" id="pet-feed">喂食 Feed</button>
+        <button type="button" data-pet-action="drink">喝水 Drink</button>
+        <button type="button" data-pet-action="play" id="pet-play">玩耍 Play</button>
+        <button type="button" data-pet-action="sleep">睡觉 Sleep</button>
+        <button type="button" data-pet-action="check">健康 Health</button>
+        <button type="button" id="pet-adjust" aria-controls="pet-sliders" aria-expanded="false">调属性 Status</button>
+        <button type="button" id="pet-hide">隐藏 Hide</button>
+        <button type="button" data-pet-action="dance" data-nailong-only hidden>跳舞 Dance</button>
+        <button type="button" data-pet-action="bath" data-nailong-only hidden>洗澡 Bath</button>
+        <button type="button" data-pet-action="study" data-nailong-only hidden>陪伴学习 Study</button>
+        <button type="button" id="pet-replay" data-nailong-only hidden>重播 Replay Entrance</button>
+        <button type="button" id="pet-sound" data-nailong-only aria-pressed="false" hidden>音效 Sound</button>
+      </div>
+      <section aria-labelledby="pet-monitor-title" class="pet-monitor">
+        <h4 id="pet-monitor-title">AI Decision Monitor</h4>
+        <dl>
+          <dt>物种 Species</dt><dd id="pet-species"></dd>
+          <dt>当前状态</dt><dd id="pet-state"></dd>
+          <dt>触发规则</dt><dd id="pet-rule"></dd>
+          <dt>执行行为</dt><dd id="pet-behavior"></dd>
+          <dt>原因</dt><dd id="pet-reason"></dd>
+        </dl>
+        <div id="pet-attributes" class="pet-attributes"></div>
+        <div id="pet-sliders" class="pet-attributes pet-sliders" hidden></div>
+        <details class="pet-history"><summary>近期互动与决策</summary><ol id="pet-history"></ol></details>
+        <p class="small">数值用于虚拟养宠模拟。</p>
+      </section>
+    </div>
+  </aside>
+</section>
+<section class="view full-view" id="view-community" hidden>
+  <div class="community-banner">
+    <div class="community-title">
+      <h2>PawthFinder Community</h2>
+      <p>交换养宠经验，分享桌宠日常与论文阅读笔记。</p>
+    </div>
+    <form class="community-search" id="community-search" role="search">
+      <input type="search" id="community-query" aria-label="搜索社区动态" maxlength="100" placeholder="搜索标题、正文或话题">
+      <button type="submit">搜索</button>
+    </form>
+  </div>
+  <div class="community-layout">
+    <aside class="community-navigation" aria-label="社区分类">
+      <div class="community-card community-category-nav">
+        <button type="button" data-community-filter="popular" aria-pressed="false"><span>热门推荐</span><small>Popular</small></button>
+        <button type="button" data-community-filter="all" aria-pressed="true"><span>最新动态</span><small>Latest</small></button>
+        <button type="button" data-community-filter="life" aria-pressed="false"><span>养宠日常</span><small>Pet Life</small></button>
+        <button type="button" data-community-filter="knowledge" aria-pressed="false"><span>养宠知识</span><small>Pet Knowledge</small></button>
+        <button type="button" data-community-filter="paper" aria-pressed="false"><span>论文分享</span><small>Research</small></button>
+        <button type="button" data-community-filter="saved" aria-pressed="false"{% if pages_preview %} hidden{% endif %}><span>我的收藏</span><small>Saved</small></button>
+        <button type="button" data-community-filter="mine" aria-pressed="false"{% if pages_preview %} hidden{% endif %}><span>我的发布</span><small>My Posts</small></button>
+      </div>
+    </aside>
+    <div class="community-timeline">
+      <div class="community-mobile-controls">
+        <select id="community-mobile-filter" aria-label="社区分类">
+          <option value="all">最新动态</option><option value="popular">热门推荐</option>
+          <option value="life">养宠日常</option><option value="knowledge">养宠知识</option>
+          <option value="paper">论文分享</option>{% if not pages_preview %}<option value="saved">我的收藏</option>
+          <option value="mine">我的发布</option>{% endif %}
+        </select>
+        <button type="button" class="community-create" data-community-create{% if pages_preview %} hidden{% endif %}>＋ 发布动态</button>
+      </div>
+      <div class="community-feed-bar">
+        <div class="community-filters" aria-label="帖子筛选">
+          <button type="button" data-community-filter="popular" aria-pressed="false">推荐</button>
+          <button type="button" data-community-filter="all" aria-pressed="true">最新</button>
+          <button type="button" data-community-filter="paper" aria-pressed="false">论文</button>
+        </div>
+        <button type="button" id="community-refresh" class="community-text-button">刷新</button>
+      </div>
+      <p id="community-publish-notice" class="community-status community-success" role="status"></p>
+      <p id="community-feed-status" class="community-status" role="status"></p>
+      <div id="community-feed" class="community-feed" aria-label="社区动态"></div>
+      <button type="button" id="community-more" class="secondary community-more" hidden>加载更多</button>
+    </div>
+    <aside class="community-sidebar" aria-label="社区功能">
+      <div class="community-card community-create-card"{% if pages_preview %} hidden{% endif %}>
+        <button type="button" class="community-create" data-community-create{% if pages_preview %} hidden{% endif %}>＋ 发布动态 <small>Create Post</small></button>
+      </div>
+      <section class="community-card community-hot">
+        <h3>社区热议</h3>
+        <ol id="community-hot-list"></ol>
+        <p id="community-hot-empty" class="small">暂无热议。</p>
+      </section>
+      <section class="community-card community-overview">
+        <h3>社区概览</h3>
+        <dl>
+          <div><dt>动态</dt><dd id="community-total">—</dd></div>
+          <div><dt>论文</dt><dd id="community-paper-total">—</dd></div>
+          <div><dt>评论</dt><dd id="community-comment-total">—</dd></div>
+        </dl>
+      </section>
+    </aside>
+  </div>
+  <dialog id="community-dialog" class="community-card community-dialog" aria-labelledby="community-dialog-title">
+    <form id="community-composer" class="community-composer">
+      <div class="community-compose-top">
+        <h3 id="community-dialog-title">发布动态</h3>
+        <label class="community-author">昵称<input id="community-author" name="author" maxlength="24" autocomplete="nickname" placeholder="访客"></label>
+      </div>
+      <div class="community-types" aria-label="帖子类型">
+        <label><input type="radio" name="kind" value="post" checked> 普通帖</label>
+        <label><input type="radio" name="kind" value="paper"> 论文分享</label>
+      </div>
+      <div class="community-post-fields">
+        <label id="community-category-label">帖子分类<select name="category"><option value="life">养宠日常</option><option value="knowledge">养宠知识</option></select></label>
+        <label>话题 <span>可选</span><input name="topic" maxlength="28" placeholder="例如：桌宠体验"></label>
+      </div>
+      <div class="community-paper-fields" id="community-paper-fields" hidden>
+        <label>论文标题<input name="title" maxlength="120" placeholder="输入论文标题" disabled></label>
+        <label>论文链接 <span>可选</span><input type="url" name="paper_url" maxlength="2048" placeholder="https://…" disabled></label>
+        <label>PDF 附件 <span>可选，最大 8 MB</span><input type="file" name="paper" accept=".pdf,application/pdf" disabled></label>
+      </div>
+      <label class="community-body-label">正文<textarea name="body" rows="4" maxlength="3000" placeholder="分享你的养宠心得，或者问大家一个问题…" required></textarea></label>
+      <div class="community-compose-bottom">
+        <p id="community-compose-status" class="community-status" role="status"></p>
+        <span id="community-body-count" class="community-body-count">0 / 3000</span>
+        <button type="button" id="community-cancel" class="secondary">取消</button>
+        <button type="submit" id="community-publish">发布</button>
+      </div>
+    </form>
+  </dialog>
+</section>
+<section class="view full-view" id="view-model" hidden>
+  <div class="section-title"><span>训练与评估</span><h2>模型实验室</h2></div>
+  <section class="panel training-panel" aria-labelledby="train-heading">
+    <div class="training-heading">
+      <div><h3 id="train-heading">用你的评分数据训练</h3><p>{% if pages_preview %}可下载样表，训练与启用新模型请在本机运行 app.py。{% else %}选择 UTF-8 CSV 后先核对数据。点击「开始训练」后，系统在本机训练并启用新模型。{% endif %}</p></div>
+      <a class="secondary template-link" href="{{ './snapshot/ratings-example.csv' if pages_preview else '/api/training/template' }}" download="pawthfinder-ratings-example.csv">下载评分 CSV 样表</a>
+    </div>
+    <p class="small">至少 20 位匿名用户，score 为 0–1；同一用户可评价多类宠物。样表内含模拟评分，上传前请按需替换。</p>
+    <form id="training-upload" class="training-actions"{% if pages_preview %} hidden{% endif %}>
+      <label>评分 CSV<input name="dataset" id="training-file" type="file" accept=".csv,text/csv" required></label>
+      <button type="submit" id="training-preview">预览数据</button>
+    </form>
+    <div id="training-preview-content" hidden></div>
+    <div class="training-actions">
+      <button type="button" id="training-start" hidden disabled>开始训练</button>
+      <progress id="training-progress" max="65" value="0" aria-label="训练进度" hidden></progress>
+    </div>
+    <p id="training-status" class="small" role="status"></p>
+  </section>
+  <div class="section-title model-results-title"><h3>当前启用的模型</h3></div>
+  <div class="pill" id="mode">正在读取模型状态…</div>
+  <div id="model-content" aria-live="polite"></div>
+</section>
+<footer><strong>PawthFinder</strong><span>慢慢了解，好好陪伴。</span><p>课程演示 · 档案参数与训练数据为合成示例 · 奶龙为虚构角色</p></footer></body></html>

@@ -1,0 +1,83 @@
+{
+  "dataset_id": "pawthfinder-synthetic-v2-seed2026-n6000",
+  "source": "synthetic_generated_dataset",
+  "generator_seed": 2026,
+  "split_seed": 42,
+  "users": 6000,
+  "pet_types": 9,
+  "rows": 54000,
+  "users_by_split": {
+    "train": 4200,
+    "test": 900,
+    "validation": 900
+  },
+  "rows_by_split": {
+    "train": 37800,
+    "test": 8100,
+    "validation": 8100
+  },
+  "eligible_rows_by_split": {
+    "train": 9989,
+    "test": 2173,
+    "validation": 2167
+  },
+  "eligible_rows_by_pet": {
+    "cat": 2043,
+    "small_dog": 1731,
+    "rabbit": 2199,
+    "hamster": 3133,
+    "hedgehog": 958,
+    "leopard_gecko": 319,
+    "budgie": 711,
+    "aquarium": 3235,
+    "nailong": 0
+  },
+  "scenario_counts": {
+    "ready": 1829,
+    "general": 1393,
+    "budget": 473,
+    "busy": 475,
+    "allergy": 472,
+    "quiet": 463,
+    "no_permission": 443,
+    "active": 452
+  },
+  "catalog_hash": "5baa5c6b5a230e4b5ff7a4d3a3f4d68a5d33cfe272603bbd4a3e9b6f1a797040",
+  "noise_std": 0.025,
+  "warning": "全部为程序合成数据；非真实调查、非兽医标签、非领养结果。模拟测试仅说明对生成机制的拟合。",
+  "feature_columns": [
+    "space",
+    "time",
+    "budget",
+    "activity",
+    "noise",
+    "grooming",
+    "experience",
+    "years",
+    "alone_hours",
+    "away_nights",
+    "allergy",
+    "pet_allowed",
+    "backup",
+    "habitat_control",
+    "live_insects"
+  ],
+  "never_use_as_features": [
+    "score",
+    "teacher_score",
+    "eligible",
+    "split",
+    "source",
+    "user_id",
+    "scenario"
+  ],
+  "sha256": {
+    "profiles.csv": "94063676d8a0ea9595026c210d12a6f992acd9b3c9f6b00f35bbf72ae6a76279",
+    "ratings.csv": "bbac477b3642645587ae03f6cd798e03414fdc3da36bf68e38603ca44ff27571",
+    "train.csv": "c2cc614c3c18220964364c147053984a6ce1dca4c9756dd8507688d89ce9f8b9",
+    "validation.csv": "c90e410e3382c81be82d01a2b60daacec2f69648459f7c1b673c0e7579d2241b",
+    "test.csv": "7450914acbc1d3d53bf107c0e38fda07d604869b65fe08447f46b11b1120ce93",
+    "pets_snapshot.json": "acc9123ef6af24fb301310d9f377fe6e751a1e73b1d00b1b732f71ac72606186",
+    "synthetic.sqlite3": "e079949c74d51f1cdb2153cc0bdc9703d582bda1c6b3f3e457906e7d67400892"
+  }
+}
