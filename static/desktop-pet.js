@@ -400,7 +400,7 @@ function startEntrance(){
         publish({state:'SPAWNING',rule:'奶龙出场',action:'全息召唤',reason:'能量汇聚后重建并扫描模型。'},timestamp(),0,false);
     } catch (error) {
         byId('pet-load-status').textContent = '奶龙已载入。全息召唤启动失败，可从互动菜单重试。';
-        console.error('PawthFinder Nailong entrance',error);
+        console.error('Pico Nailong entrance',error);
     }
 }
 
@@ -433,7 +433,7 @@ async function loadScene(appear){
         summonRequested = false;
         stageHint.textContent = '3D 模型未载入';
         byId('pet-load-status').textContent = '桌宠加载失败。检查浏览器的 WebGL 支持，再点 Generate Pet 重试。';
-        console.error('PawthFinder 3D pet',error);
+        console.error('Pico 3D pet',error);
     }
 }
 

@@ -1,12 +1,12 @@
-# PawthFinder 在线部署
+# Pico 在线部署
 
-公开入口为 [PawthFinder GitHub Pages](https://bruce666-ppp.github.io/IDAT7215/)。GitHub Pages 渲染静态入口和公开示例。点击「选宠问卷」后，入口查询托管服务的健康状态，再打开该服务上的问卷。问卷、推荐、反馈、真实社区和 PDF 都在同一个 Flask HTTPS 域名下访问。
+公开入口为 [Pico GitHub Pages](https://bruce666-ppp.github.io/IDAT7215/)。GitHub Pages 渲染静态入口和公开示例。点击「选宠问卷」后，入口查询托管服务的健康状态，再打开该服务上的问卷。问卷、推荐、反馈、真实社区和 PDF 都在同一个 Flask HTTPS 域名下访问。
 
 Flask 对问卷做原有特征提取，加载 `artifacts/model.pt` 进行 CPU 推理，再使用专家规则筛选并解释结果。健康接口返回模型版本和运行模式。SQLite 保存匿名会话的推荐、反馈和社区数据。
 
 ## 创建免费演示服务
 
-1. 登录 Render，打开 [导入 PawthFinder Blueprint](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FBruce666-ppp%2FIDAT7215)。如需授权，请选择 `Bruce666-ppp/IDAT7215`。在创建页确认服务的实例类型为 **Free**。免费档闲置后会休眠，首次访问可能需要等待约一分钟。服务重启或重新部署会清空演示记录。[Render 免费档说明](https://render.com/docs/free)
+1. 登录 Render，打开 [导入 Pico Blueprint](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FBruce666-ppp%2FIDAT7215)。如需授权，请选择 `Bruce666-ppp/IDAT7215`。在创建页确认服务的实例类型为 **Free**。免费档闲置后会休眠，首次访问可能需要等待约一分钟。服务重启或重新部署会清空演示记录。[Render 免费档说明](https://render.com/docs/free)
 2. 服务达到 **Live** 后复制 Render 提供的 HTTPS 站点地址。访问该地址的 `/api/health`，确认 HTTP 200、`status: "ok"` 与 `model_loaded: true`。
 3. 在 GitHub 仓库 **Settings → Secrets and variables → Actions → Variables** 设置仓库变量 `PAWTH_APP_URL`，值为该 HTTPS 站点首页地址。到 **Actions → Deploy PawthFinder to GitHub Pages → Run workflow**，选择 `main`。发布后，在公开入口点击「选宠问卷」即可进入在线推荐。
 

@@ -58,7 +58,7 @@ def create_app(db_path=None,engine=None):
         origin=request.headers.get('Origin')
         if (request.method not in ('GET','HEAD','OPTIONS') and request.path.startswith('/api/')
                 and origin and origin != request.host_url.rstrip('/')):
-            return jsonify(error='请从 PawthFinder 应用页面提交请求。'),403
+            return jsonify(error='请从 Pico 应用页面提交请求。'),403
 
     @app.after_request
     def headers(response):
@@ -175,7 +175,7 @@ def create_app(db_path=None,engine=None):
     @app.get('/api/training/template')
     def training_template():
         return Response('\ufeff' + template_csv(), mimetype='text/csv',
-                        headers={'Content-Disposition': 'attachment; filename="pawthfinder-ratings-example.csv"'})
+                        headers={'Content-Disposition': 'attachment; filename="pico-ratings-example.csv"'})
     @app.post('/api/training/preview')
     def training_preview():
         if not allow_training:

@@ -231,7 +231,7 @@ async function loadModel(){
             stats.append(stat);
         }
         const gallery=node('div',undefined,'lab-charts');
-        if(m.history?.length) gallery.append(figure('训练与验证损失',lossGraph(m.history),'棕色为训练损失，金色为验证损失。'));
+        if(m.history?.length) gallery.append(figure('训练与验证损失',lossGraph(m.history),'蓝色实线为训练损失，暖橙色虚线为验证损失。'));
         const splits=[['训练集',m.train_rows],['验证集',m.val_rows],['测试集',m.test_rows]];
         gallery.append(figure('按集合查看配对数',rowsGraph(splits,'训练、验证与测试集配对数'),
             '训练、验证、测试分别有 '+m.train_users+'、'+m.val_users+'、'+m.test_users+' 位用户。'));

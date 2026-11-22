@@ -1,4 +1,6 @@
-# PawthFinder V5 宠物生活手册
+# Pico 宠物生活手册
+
+Pico 是面向养宠准备者的宠物推荐与虚拟陪伴平台。通过中文照护档案、生活方式问卷和可解释推荐，帮助访客了解真实宠物和虚拟伙伴。
 
 ## 在线演示与完整应用
 
@@ -6,7 +8,7 @@ GitHub Pages 保留公开入口、宠物档案、对比清单和 3D 桌宠。配
 
 部署、健康检查、持久盘及连接入口的步骤见 [部署说明](DEPLOYMENT.md)。
 
-向仓库的 `main` 分支提交并推送更改后，GitHub Actions 会构建并发布 Pages。可在 GitHub 的 **Actions** 中查看 `Deploy PawthFinder to GitHub Pages`。本地构建采用 `python build_pages.py`，输出到 `_site/`。
+向仓库的 `main` 分支提交并推送更改后，GitHub Actions 会构建并发布 Pages。可在 GitHub 的 **Actions** 中查看 `pages.yml` 工作流。本地构建采用 `python build_pages.py`，输出到 `_site/`。
 
 首页共 9 位伙伴：猫、狗、兔子、仓鼠、刺猬、豹纹守宫、虎皮鹦鹉、观赏鱼、奶龙。「认识伙伴」提供照护条件快捷筛选和首年开销试算。问卷加入独处时长、外宿晚数、饲养环境管理和活饵准备四题。
 奶龙是虚构的幻想伙伴。每次在「我的清单」点击 **Generate Pet** 都会播放全息开场。真实照护成本和推荐结果对应真实宠物。
@@ -15,9 +17,33 @@ GitHub Pages 保留公开入口、宠物档案、对比清单和 3D 桌宠。配
 
 已包含重新训练后的模型，可直接启动。新用户先按下方安装依赖；已有依赖的用户只需 python app.py，然后访问 http://127.0.0.1:8050 。
 
-# PawthFinder — 深度学习宠物推荐专家系统
+## Pico 推荐系统
 
 V2 增强版：Flask + PyTorch 多层感知机 + 专家规则 + SQLite + 原生网页。
+
+### Pico 设计参数
+
+全站变量集中在 [static/style.css](static/style.css)。导航、问卷、社区、模型图表和桌宠面板共享同一套颜色与组件规范。
+
+| 用途 | 变量 | 颜色 |
+| --- | --- | --- |
+| 品牌蓝 | `--brand-primary` | `#5E84C3` |
+| 主要操作 | `--action` | `#426EAE` |
+| 操作悬停、链接及焦点 | `--action-hover` | `#355D99` |
+| 深蓝及主要文字 | `--ink` | `#304766` |
+| 浅蓝背景 | `--light-blue` | `#EEF4FB` |
+| 选中背景及装饰 | `--soft-blue` | `#E3EDFA` |
+| 浅橙点缀 | `--peach` | `#FFC995` |
+| 提示和虚拟陪伴背景 | `--soft-peach` | `#FCF1E7` |
+| 页面背景 | `--page` | `#F5F8FC` |
+| 卡片背景 | `--card` | `#FFFFFF` |
+| 次要文字 | `--muted` | `#65758B` |
+| 彩色背景上的次要文字 | `--muted-strong` | `#526783` |
+| 分割线 | `--line` | `#D9E3F0` |
+| 输入框边界 | `--control-border` | `#778DA9` |
+| 成功、警告、错误 | `--success` / `--warning` / `--danger` | `#246748` / `#754F2A` / `#A23549` |
+
+按钮、卡片、主要图片和输入框圆角分别为 12、16、20 和 10 px。基础间距以 4 px 为单位，按钮交互时长为 180 ms，并遵循系统减少动态效果设置。中文界面使用本地 Noto Sans SC 字形子集及系统中文字体回退。Poppins 用于英文标题和关键数值，Nunito Sans 用于英文正文和导航。字体与许可证均在 [static/brand/fonts](static/brand/fonts)，Logo 和 Favicon 来自原始 Pico 图形和字标。
 
 ### 在模型实验室上传并训练
 
