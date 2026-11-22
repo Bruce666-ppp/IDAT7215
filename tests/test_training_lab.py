@@ -53,7 +53,7 @@ def test_upload_preview_training_activation_and_restart(tmp_path, monkeypatch):
 
     first = upload(client, 'demo-a.csv', 0.95, 0.05)
     assert first['status'] == 'ready' and first['epoch'] == 0
-    assert first['users'] == 24 and first['rows'] == 72
+    assert first['users'] == 24 and first['rows'] == 48
     assert client.get('/api/model').get_json()['mode'] == 'rules_only'
     other_client = app.test_client()
     assert other_client.post('/api/training/' + first['id'] + '/start', json={}).status_code == 404
@@ -73,4 +73,5 @@ def test_upload_preview_training_activation_and_restart(tmp_path, monkeypatch):
     assert metrics['dataset_name'] == 'demo-b.csv'
     assert metrics['dataset_sha256'] == second['dataset_sha256']
     assert metrics['metrics']['history'] and metrics['metrics']['per_pet_rows']
+    assert all(pet['id']!='nailong' for pet in metrics['metrics']['per_pet_rows'])
     assert cat_score(create_app(database).test_client()) == (version_b, score_b)

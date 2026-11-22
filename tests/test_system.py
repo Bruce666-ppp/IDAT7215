@@ -21,7 +21,7 @@ def test_rules_cannot_be_overridden(tmp_path):
     engine=Recommender(path)
     for profile in [dict(DEFAULT,pet_allowed=False),dict(DEFAULT,backup=False),dict(DEFAULT,budget=0)]:
         result=engine.recommend(profile)
-        assert result['recommendations']==[] and len(result['excluded'])==len(PETS)
+        assert result['recommendations']==[] and len(result['excluded'])==result['real_pet_count']
     allergy=engine.recommend(dict(DEFAULT,allergy=True))
     assert all(not next(p for p in PETS if p['id']==x['id'])['fur'] for x in allergy['recommendations'])
 
@@ -46,7 +46,8 @@ def test_http_and_feedback_ownership(tmp_path):
     assert a.get('/api/info').status_code==200
     assert a.post('/api/recommend',json={}).status_code==400
     assert a.post('/api/recommend',data='{',content_type='application/json').status_code==400
-    assert a.post('/api/recommend',json=dict(DEFAULT,budget=1e100)).status_code==400
+    outside=a.post('/api/recommend',json=dict(DEFAULT,budget=1e100))
+    assert outside.status_code==422 and outside.get_json()['recommendation_status']=='OUT_OF_DOMAIN'
     r=a.post('/api/recommend',json=DEFAULT); assert r.status_code==200
     result=r.get_json(); p=result['recommendations'][0]['id']
     payload=dict(run_id=result['run_id'],pet_id=p,rating=5)
@@ -131,7 +132,7 @@ def test_generated_dataset_reproducible_and_isolated(tmp_path):
     a,b=tmp_path/'a',tmp_path/'b'
     m=generate(a,40,2026);generate(b,40,2026)
     assert (a/'ratings.csv').read_bytes()==(b/'ratings.csv').read_bytes()
-    assert m['rows']==40*len(PETS)
+    assert m['rows']==40*sum(not pet.get('fictional') for pet in PETS)
     rows=read_real(a/'ratings.csv');groups,sources,explicit=split_csv(a/'ratings.csv',rows,42)
     sets=[{r[0] for r in groups[p]} for p in ['train','validation','test']]
     assert len(sets[0])==28 and len(sets[1])==6 and len(sets[2])==6
@@ -139,7 +140,8 @@ def test_generated_dataset_reproducible_and_isolated(tmp_path):
     assert sources=={'synthetic_generated_dataset'} and explicit
     assert all(y==0 for _,u,p,y in rows if not assess(u,p)['eligible'])
     with sqlite3.connect(a/'synthetic.sqlite3') as con:
-        assert con.execute('SELECT COUNT(*) FROM ratings').fetchone()[0]==40*len(PETS)
+        assert con.execute('SELECT COUNT(*) FROM ratings').fetchone()[0]==m['rows']
+        assert con.execute("SELECT COUNT(*) FROM ratings WHERE pet_id='nailong'").fetchone()[0]==0
 
 
 def test_split_rejects_leakage(tmp_path):
@@ -163,4 +165,5 @@ def test_nine_partners_with_fiction_excluded(tmp_path):
     engine=Recommender(tmp_path/'no.pt')
     result=engine.recommend(dict(DEFAULT,space=500,time=12,budget=10000,years=30,noise=5,grooming=5,experience=2))
     assert 'nailong' not in {p['id'] for p in result['recommendations']}
-    assert any(p['id']=='nailong' and '虚构' in p['blocked'][0] for p in result['excluded'])
+    assert 'nailong' not in {p['id'] for p in result['excluded']}
+    assert result['virtual_companion'] is None

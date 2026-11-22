@@ -85,3 +85,20 @@
 #submit[aria-busy=true]::before{content:"";display:inline-block;width:.8em;height:.8em;margin-right:.5em;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-.1em;animation:quiz-spin .8s linear infinite}
 @keyframes quiz-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){#submit[aria-busy=true]::before{animation:none}}
+.allergy-disclosure{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .22s ease,opacity .18s ease}
+.allergy-disclosure.is-open{grid-template-rows:1fr;opacity:1}
+.allergy-disclosure-content{min-height:0;overflow:hidden}
+#allergy-fields{min-width:0;margin:.65rem 0 .25rem;padding:.75rem;border:1px solid var(--line);border-radius:4px}
+#allergy-fields .checks{gap:.5rem 1rem}
+#allergy-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));margin:.35rem 0 .7rem}
+#allergy-other-label{display:grid;gap:.35rem;margin-top:.6rem}
+#allergy-other-label input{width:100%}
+#allergy-notice{margin-bottom:0}
+.virtual-result{margin:.9rem 0}
+.virtual-preview{position:relative;height:clamp(180px,34vw,270px);margin:.6rem 0;overflow:hidden;background:#f4eee4;border-radius:4px}
+.virtual-preview canvas{display:block;width:100%;height:100%}
+.virtual-preview:empty{display:none}
+#virtual-guidance{margin-bottom:.65rem}
+.decision-explanation{margin-top:1rem}
+.decision-explanation #excluded-panel{margin-top:.7rem}
+@media(prefers-reduced-motion:reduce){.allergy-disclosure{transition:none}}

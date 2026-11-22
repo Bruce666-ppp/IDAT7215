@@ -84,10 +84,13 @@ def test_hosted_api_cookies_health_and_mutations(tmp_path,monkeypatch):
     blocked=client.post('/api/recommend',base_url=origin,json=DEFAULT,headers={'Origin':pages_origin})
     assert blocked.status_code==403
     response=client.post('/api/recommend',base_url=origin,json=DEFAULT,headers={'Origin':origin})
-    assert response.get_json()['mode']=='rules_only'
+    assert response.status_code==503
+    assert response.get_json()['recommendation_status']=='SYSTEM_ERROR'
+    assert response.get_json()['virtual_companion'] is None
     proxied=client.post('/api/recommend',base_url='http://app.example',json=DEFAULT,
                         headers={'Origin':origin,'X-Forwarded-Proto':'https'})
-    assert proxied.status_code==200
+    assert proxied.status_code==503
+    assert proxied.get_json()['recommendation_status']=='SYSTEM_ERROR'
     assert client.post('/api/training/preview',base_url=origin).status_code==403
 
 

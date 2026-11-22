@@ -10,7 +10,8 @@ from pathlib import Path
 from flask import Flask,Response,jsonify,render_template,request,session
 from werkzeug.middleware.proxy_fix import ProxyFix
 from community import register_community
-from core import BASE,PETS,DEFAULT,INPUT_DIM,USER_KEYS,validate
+from core import ALLERGY_CAUTION,ALLERGY_OPTIONS,BASE,PETS,REAL_PETS,DEFAULT,INPUT_DIM,USER_KEYS
+from decision import HTTP_STATUS,Status,decision
 from training_lab import MAX_UPLOAD_BYTES, TrainingLab, template_csv
 
 def create_app(db_path=None,engine=None):
@@ -92,17 +93,24 @@ def create_app(db_path=None,engine=None):
     def info():
         recommender = lab.snapshot()
         return jsonify(defaults=DEFAULT,mode=recommender.source,status=recommender.status,pets=PETS,
-                       model_version=recommender.version)
+                       model_version=recommender.version,allergy_notice=ALLERGY_CAUTION,
+                       allergy_options=[{'id':key,'name':label} for key,label in ALLERGY_OPTIONS.items()])
     @app.post('/api/recommend')
     def recommend():
-        if not request.is_json: return jsonify(error='需要 application/json'),415
+        if not request.is_json:
+            return jsonify(decision(Status.INVALID_INPUT,'问卷须以 JSON 提交。',inference='SKIPPED_INVALID_INPUT')),415
+        raw=request.get_json()
         try:
-            raw=request.get_json(); u=validate(raw); result=lab.snapshot().recommend(u)
-        except (ValueError,TypeError) as e: return jsonify(error=str(e)),400
+            result=lab.snapshot().recommend(raw,require_model=require_model)
+        except Exception:
+            app.logger.exception('Unexpected recommendation error')
+            return jsonify(decision(Status.SYSTEM_ERROR,'暂时无法生成推荐，请稍后重试。',inference='FAILED')),503
+        if result['recommendation_status'] in HTTP_STATUS:
+            return jsonify(result),HTTP_STATUS[result['recommendation_status']]
         run_id=str(uuid.uuid4())
         with closing(connect()) as con, con:
             con.execute('INSERT INTO runs VALUES (?,?,?,?,?)',(run_id,owner(),datetime.now(timezone.utc).isoformat(),
-                json.dumps(u),json.dumps(result,ensure_ascii=False)))
+                json.dumps(result['input_summary'],ensure_ascii=False),json.dumps(result,ensure_ascii=False)))
         return jsonify(run_id=run_id,**result)
     @app.post('/api/feedback')
     def feedback():
@@ -139,16 +147,17 @@ def create_app(db_path=None,engine=None):
         if not request.is_json: return jsonify(error='需要 application/json'),415
         body=request.get_json()
         if not isinstance(body,dict) or set(body)!={'before','after'}: return jsonify(error='需要 before 与 after 完整问卷'),400
-        try:
-            recommender = lab.snapshot()
-            before=recommender.recommend(validate(body['before']))
-            after=recommender.recommend(validate(body['after']))
-        except (ValueError,TypeError) as e: return jsonify(error=str(e)),400
+        recommender = lab.snapshot()
+        before=recommender.recommend(body['before'],require_model=require_model)
+        after=recommender.recommend(body['after'],require_model=require_model)
+        for result in (before,after):
+            if result['recommendation_status'] in HTTP_STATUS:
+                return jsonify(result),HTTP_STATUS[result['recommendation_status']]
         def lookup(result):
             return {p['id']:p for p in result['recommendations']+result['excluded']}
         b,a=lookup(before),lookup(after)
         changes=[]
-        for p in PETS:
+        for p in REAL_PETS:
             old,new=b[p['id']],a[p['id']]
             changes.append(dict(id=p['id'],name=p['name'],before=old.get('score'),after=new.get('score'),
                 delta=round(new['score']-old['score'],1) if old['eligible'] and new['eligible'] else None,
@@ -198,12 +207,20 @@ def create_app(db_path=None,engine=None):
         job = lab.get(owner(), job_id)
         return jsonify(job) if job else (jsonify(error='本会话没有这次训练'), 404)
     @app.errorhandler(400)
-    def bad_request(e): return jsonify(error='请求不是有效 JSON'),400
+    def bad_request(e):
+        if request.endpoint=='recommend':
+            return jsonify(decision(Status.INVALID_INPUT,'问卷须为有效的 JSON 对象。',inference='SKIPPED_INVALID_INPUT')),400
+        return jsonify(error='请求不是有效 JSON'),400
     @app.errorhandler(413)
-    def too_large(e): return jsonify(error='请求过大'),413
+    def too_large(e):
+        if request.endpoint=='recommend':
+            return jsonify(decision(Status.INVALID_INPUT,'问卷数据超过允许大小。',inference='SKIPPED_INVALID_INPUT')),413
+        return jsonify(error='请求过大'),413
     @app.errorhandler(sqlite3.OperationalError)
     def database_unavailable(error):
         app.logger.error('SQLite error while handling a request',exc_info=error)
+        if request.endpoint=='recommend':
+            return jsonify(decision(Status.SYSTEM_ERROR,'暂时无法保存推荐记录，请稍后重试。')),503
         return jsonify(error='暂时无法读取或保存记录，请稍后重试。'),503
     return app
 if __name__=='__main__':

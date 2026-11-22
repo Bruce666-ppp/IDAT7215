@@ -6,7 +6,13 @@ const pagesPreview=document.body.hasAttribute('data-pages-preview');
 const apiBase=new URL($('meta[name="pawth-api-base"]')?.content||(pagesPreview?'./snapshot/':'./api/'),document.baseURI);
 const onlineQuiz=$('#online-quiz');
 const numbers=['space','time','budget','years','activity','noise','grooming','experience','alone_hours','away_nights'];
-const flags=['pet_allowed','backup','allergy','habitat_control','live_insects'];
+const flags=['pet_allowed','backup','habitat_control','live_insects'];
+const allergy={
+    checkbox:$('#has-allergy'), panel:$('#allergy-questions'), fields:$('#allergy-fields'),
+    options:$('#allergy-options'), toggle:$('#allergy-other-toggle'),
+    otherLabel:$('#allergy-other-label'), other:$('#allergy-fields [name=other_allergy]'),
+    uncertain:$('#allergy-fields [name=allergy_uncertain]'),
+};
 function apiUrl(path){
     const endpoint=path.slice('/api/'.length);
     return new URL(pagesPreview?endpoint+'.json':endpoint,apiBase);
@@ -22,7 +28,9 @@ async function requestApi(path,options={},timeout=25000){
         if(!response.ok){
             const fallback=[502,503,504].includes(response.status)
                 ? '服务可能正在启动或暂不可用，请稍后重试。' : '服务请求失败，请重试。';
-            throw Error(result?.error||fallback);
+            const error=Error(result?.error||fallback);
+            if(result?.recommendation_status) error.decision=result;
+            throw error;
         }
         if(!result) throw Error('服务返回了无法读取的响应，请重试。');
         return result;
@@ -94,12 +102,63 @@ function modeText(mode){
     return mode.startsWith('synthetic') ? '随附合成数据 · 自训练模型' : '导入评分数据 · 自训练模型';
 }
 function list(items){const ul=node('ul');for(const text of items)ul.append(node('li',text));return ul;}
+function updateOtherAllergy(){
+    const show=allergy.checkbox.checked&&allergy.toggle.checked;
+    allergy.toggle.setAttribute('aria-expanded',String(show));
+    allergy.otherLabel.hidden=!show;
+    allergy.other.disabled=!show;
+    if(!show) allergy.other.value='';
+}
+function updateAllergyQuestions(){
+    const show=allergy.checkbox.checked;
+    allergy.checkbox.setAttribute('aria-expanded',String(show));
+    allergy.panel.classList.toggle('is-open',show);
+    allergy.panel.setAttribute('aria-hidden',String(!show));
+    allergy.panel.inert=!show;
+    allergy.fields.disabled=!show;
+    if(!show){
+        for(const input of allergy.fields.querySelectorAll('input[type=checkbox]')) input.checked=false;
+    }
+    updateOtherAllergy();
+}
+function populateAllergyOptions(options,notice){
+    allergy.options.replaceChildren();
+    for(const option of options){
+        const label=node('label');
+        const input=node('input');
+        input.type='checkbox';
+        input.name='allergy_types';
+        input.value=option.id;
+        label.append(input,' '+option.name);
+        allergy.options.append(label);
+    }
+    if(notice) $('#allergy-notice').textContent=notice;
+}
 function fillProfile(profile){
     const values={...defaults,...profile};
     for(const key of numbers) $('#quiz').elements.namedItem(key).value=values[key]??'';
     for(const key of flags) $('#quiz').elements.namedItem(key).checked=Boolean(values[key]);
+    allergy.checkbox.checked=Boolean(values.has_allergy??values.allergy);
+    allergy.uncertain.checked=Boolean(values.allergy_uncertain??(!Object.hasOwn(values,'has_allergy')&&values.allergy));
+    for(const input of allergy.options.querySelectorAll('input')) input.checked=(values.allergy_types||[]).includes(input.value);
+    allergy.other.value=values.other_allergy||'';
+    allergy.toggle.checked=Boolean(allergy.other.value);
+    updateAllergyQuestions();
 }
-function readProfile(){const f=new FormData($('#quiz')),u={};for(const k of numbers)u[k]=Number(f.get(k));for(const k of flags)u[k]=f.has(k);return u;}
+function readProfile(){
+    const form=new FormData($('#quiz'));
+    const profile={};
+    for(const key of numbers){
+        const value=form.get(key);
+        profile[key]=typeof value==='string'&&value.trim()?Number(value):null;
+    }
+    for(const key of flags) profile[key]=form.has(key);
+    profile.has_allergy=form.has('has_allergy');
+    profile.allergy_types=profile.has_allergy?form.getAll('allergy_types'):[];
+    profile.allergy_uncertain=profile.has_allergy&&form.has('allergy_uncertain');
+    profile.other_allergy=profile.has_allergy?String(form.get('other_allergy')||'').trim():'';
+    return profile;
+}
 function showFromLocation(){
     const route=location.hash.slice(1);
     const petRoute=route.startsWith('pet-');
@@ -112,6 +171,8 @@ function showFromLocation(){
     if(view==='compare') renderCompare();
     if(petRoute) openLinkedProfile();
     if(view==='match'&&pagesPreview) void openOnlineQuiz();
+    if(view==='match') void playVirtualPreview();
+    else stopVirtualPreview();
     window.scrollTo({top:0,behavior:'auto'});
 }
 function show(view,petId){
@@ -242,21 +303,158 @@ for(const pet of cards){
 }
 if(!pets.length)return;
 const rows=[['每月预算（港币）',...pets.map(p=>p.budget)],['年度常规预算（港币）',...pets.map(p=>p.budget*12)],['每日照护时间（小时）',...pets.map(p=>p.time)],['可用空间（㎡）',...pets.map(p=>p.space)],['承诺期限（年）',...pets.map(p=>p.years)],['活动强度 / 5',...pets.map(p=>p.activity)],['噪声等级 / 5',...pets.map(p=>p.noise)],['护理强度 / 5',...pets.map(p=>p.grooming)],['经验等级 / 2',...pets.map(p=>p.experience)],['照护提醒',...pets.map(p=>p.note)]];
-if(state.result){rows.push(['当前显示推荐中的状态',...pets.map(p=>{const yes=state.result.recommendations.find(x=>x.id===p.id);return yes?`适配评分 ${yes.score.toFixed(1)}`:'未通过规则';})]);}
+if(state.result?.run_id){rows.push(['当前显示推荐中的状态',...pets.map(p=>{const yes=state.result.recommendations.find(x=>x.id===p.id);return yes?`适配评分 ${yes.score.toFixed(1)}`:'未通过规则';})]);}
 rows.push(['清单操作',...pets.map(p=>{const b=node('button','移除','secondary');b.onclick=()=>toggleCompare(p.id);return b;})]);$('#compare-content').append(table(['属性',...pets.map(p=>p.emoji+' '+p.name)],rows));}
-function renderResult(result,profile){
-    state.result=result;
-    state.profile={...profile};
+const virtualResult=$('#virtual-result');
+const adoptPartner=$('#virtual-adopt');
+let previewScene,previewLoading;
+let previewRequest=0;
+
+function stopVirtualPreview(){
+    previewRequest++;
+    previewScene?.setVisible(false);
+}
+async function playVirtualPreview(){
+    const companion=state.result?.virtual_companion;
+    if(!companion||virtualResult.hidden||$('#view-match').hidden||document.hidden) return;
+    const request=++previewRequest;
+    const status=$('#virtual-preview-status');
+    status.hidden=false;
+    status.textContent='正在加载奶龙 3D 模型…';
+    try{
+        previewLoading ||= import('./desktop-pet-scene.js').then(async module=>{
+            previewScene ||= module.createPetScene($('#virtual-preview'));
+            await previewScene.select(companion.id,false);
+            return previewScene;
+        }).catch(error=>{previewLoading=null;throw error;});
+        const scene=await previewLoading;
+        if(request!==previewRequest) return;
+        scene.setVisible(true);
+        scene.playEntrance({onEnd:()=>{}});
+        status.hidden=true;
+    }catch{
+        if(request!==previewRequest) return;
+        status.textContent='暂时无法加载 3D 预览，可在「我的清单」重试。';
+    }
+}
+document.addEventListener('visibilitychange',()=>{
+    if(document.hidden) stopVirtualPreview();
+    else void playVirtualPreview();
+});
+adoptPartner.onclick=async()=>{
+    const companion=state.result?.virtual_companion;
+    if(!companion) return;
+    adoptPartner.disabled=true;
+    try{
+        const {generateDesktopPet}=await import('./desktop-pet.js');
+        if(state.result?.virtual_companion!==companion) return;
+        show('compare');
+        generateDesktopPet(companion.id);
+    }catch{
+        notify('桌宠模块暂时无法载入，请稍后重试。');
+    }finally{
+        adoptPartner.disabled=false;
+    }
+};
+$('#virtual-adjust').onclick=()=>$('#quiz [name=space]').focus();
+
+function resetRecommendation(){
+    state.result=null;
+    state.profile=null;
     state.scenario=null;
     $('#scenario-box').hidden=true;
-    $('#scenario-result').replaceChildren();
     $('#scenario-apply').hidden=true;
-    $('#cards').replaceChildren();
-    $('#excluded').replaceChildren();
-    const version=result.model_version?' · 模型版本 '+result.model_version:'';
-    $('#summary').textContent=modeText(result.mode)+version+'。'+result.message+' '+result.notice;
-    $('#export').disabled=false;
-    $('#scenario-open').disabled=false;
+    $('#export').disabled=true;
+    $('#scenario-open').disabled=true;
+    for(const id of ['cards','excluded','decision-trace','scenario-result']) $('#'+id).replaceChildren();
+    for(const id of ['excluded-panel','decision-explanation','decision-notices']) $('#'+id).hidden=true;
+    $('#decision-explanation').open=false;
+    $('#excluded-panel').open=false;
+    virtualResult.hidden=true;
+    stopVirtualPreview();
+    renderCompare();
+}
+
+function renderVirtualResult(result){
+    const companion=result.virtual_companion;
+    virtualResult.hidden=!companion;
+    if(!companion) return;
+    $('#virtual-title').textContent=companion.name+(companion.optional?' · 可选虚拟伙伴':' · 你的虚拟伙伴');
+    $('#virtual-message').textContent=companion.message;
+    const guidance=$('#virtual-guidance');
+    const triggers=result.triggered_rules.filter(rule=>rule.kind==='hard_constraint');
+    guidance.hidden=triggers.length===0&&!result.suggestions.length;
+    guidance.open=true;
+    const gaps=triggers.map(rule=>{
+        const pet=result.excluded_pets.find(item=>rule.pet_ids.includes(item.id));
+        const example=result.exclusion_reasons[pet.id].find(check=>check.rule_id===rule.rule_id);
+        return rule.rule_id+' · '+pet.name+' · '+example.reason;
+    });
+    $('#virtual-guidance-content').replaceChildren(list(gaps),list(result.suggestions));
+    void playVirtualPreview();
+}
+
+const inferenceLabels={
+    EXECUTED:'已对通过筛选的真实宠物执行 PyTorch 推理。',
+    RULES_ONLY:'当前使用专家规则备用评分。',
+    SKIPPED_NO_ELIGIBLE:'硬性筛选后没有候选，模型推理未执行。',
+    SKIPPED_OUT_OF_DOMAIN:'输入超出模型适用范围，模型推理未执行。',
+    SKIPPED_INVALID_INPUT:'输入校验未通过，模型推理未执行。',
+    FAILED:'计算服务遇到问题。',
+    NOT_RUN:'未执行模型推理。',
+};
+function renderDecisionTrace(result){
+    const details=$('#decision-explanation');
+    details.hidden=!result.recommendation_status;
+    if(details.hidden) return;
+    const trace=$('#decision-trace');
+    const profile=result.input_summary;
+    if(profile){
+        const known=(profile.allergy_types||[]).map(id=>state.pets.find(pet=>pet.id===id)?.display_name||id);
+        const hasAllergy=profile.has_allergy??profile.allergy;
+        const allergyAnswer=hasAllergy?[
+            '有已知过敏',known.length?known.join('、'):'过敏对象未明确选择',
+            profile.allergy_uncertain?'不确定具体过敏原':'',profile.other_allergy,
+        ].filter(Boolean).join(' · '):'未报告动物相关过敏';
+        trace.append(table(['问卷输入','本次填写'],[
+            ['空间、每日时间',profile.space+' ㎡ · '+profile.time+' 小时'],
+            ['月预算、承诺期限','HK$ '+profile.budget+' · '+profile.years+' 年'],
+            ['居所许可、替代照护',(profile.pet_allowed?'允许':'未允许')+' · '+(profile.backup?'已安排':'待安排')],
+            ['活动、噪声、护理强度',[profile.activity,profile.noise,profile.grooming].join(' / ')],
+            ['经验、离家作息',profile.experience+' 级 · '+profile.alone_hours+' 小时 · 每月外宿 '+profile.away_nights+' 晚'],
+            ['环境、活饵',(profile.habitat_control?'可管理环境':'环境待准备')+' · '+(profile.live_insects?'可准备活饵':'未准备活饵')],
+            ['动物相关过敏',allergyAnswer],
+        ]));
+    }
+    if(result.eligible_count!==null){
+        trace.append(node('p','通过硬性筛选 '+result.eligible_count+' / '+result.real_pet_count+' 种真实宠物。'));
+    }
+    if(result.triggered_rules.length){
+        trace.append(list(result.triggered_rules.map(rule=>rule.rule_id+' · '+rule.label+' · '+
+            (rule.kind==='caution'?rule.reason:rule.pet_ids.length+' 种档案触发'))));
+    }
+    trace.append(node('p',inferenceLabels[result.model_inference_status]),
+        node('p',result.decision_reason));
+    if(result.ranking.length){
+        trace.append(table(['排序','真实宠物','适配评分'],result.ranking.map(pet=>[pet.rank,pet.name,pet.score.toFixed(1)])));
+    }
+    if(result.virtual_companion){
+        trace.append(node('p',(result.fallback_triggered?'触发虚拟陪伴机制。':'可选虚拟陪伴。')+result.fallback_reason));
+    }
+}
+
+function renderResult(result){
+    state.result=result;
+    state.profile=result.input_summary;
+    const version=result.model_inference_status==='EXECUTED'?' · 模型版本 '+result.model_version:'';
+    const mode=result.model_inference_status==='EXECUTED'||result.model_inference_status==='RULES_ONLY'
+        ?modeText(result.mode)+version+'。':'';
+    $('#summary').textContent=mode+result.decision_reason;
+    $('#export').disabled=!result.run_id;
+    $('#scenario-open').disabled=!result.run_id;
+    const notices=$('#decision-notices');
+    notices.textContent=[result.allergy_notice,...result.triggered_rules.filter(rule=>rule.kind==='caution').map(rule=>rule.reason)].filter(Boolean).join(' ');
+    notices.hidden=!notices.textContent;
     for(const [index,pet] of result.recommendations.entries()){
         const card=node('article',undefined,'card');
         const catalogPet=state.pets.find(item=>item.id===pet.id);
@@ -276,12 +474,14 @@ function renderResult(result,profile){
             details,compareButton(pet),recommendationFeedback(result,pet));
         $('#cards').append(card);
     }
-    $('#excluded-panel').hidden=result.excluded.length===0;
-    for(const pet of result.excluded){
+    $('#excluded-panel').hidden=result.excluded_pets.length===0;
+    for(const pet of result.excluded_pets){
         const item=node('div',undefined,'exclude-item');
-        item.append(node('strong',pet.name),list(pet.blocked));
+        item.append(node('strong',pet.name),list(result.exclusion_reasons[pet.id].map(check=>check.rule_id+' · '+check.reason)));
         $('#excluded').append(item);
     }
+    renderDecisionTrace(result);
+    renderVirtualResult(result);
     renderCompare();
 }
 function recommendationFeedback(result,pet){
@@ -321,6 +521,9 @@ function recommendationFeedback(result,pet){
 const quiz=$('#quiz');
 const quizSubmit=$('#submit');
 const submitLabel=quizSubmit.textContent;
+allergy.checkbox.addEventListener('change',updateAllergyQuestions);
+allergy.toggle.addEventListener('change',updateOtherAllergy);
+updateAllergyQuestions();
 quiz.addEventListener('input',event=>event.target.removeAttribute('aria-invalid'));
 quiz.addEventListener('submit',async event=>{
     event.preventDefault();
@@ -329,30 +532,41 @@ quiz.addEventListener('submit',async event=>{
     const status=$('#quiz-status');
     errorBox.textContent='';
     status.textContent='';
-    const invalid=quiz.querySelector('input:invalid,select:invalid,textarea:invalid');
+    resetRecommendation();
+    const invalid=[...quiz.elements].find(field=>field.willValidate&&
+        (field.validity.valueMissing||field.validity.badInput||field.valueAsNumber<0));
     if(invalid){
         const label=invalid.closest('label')?.firstChild?.textContent.trim()||'问卷字段';
         invalid.setAttribute('aria-invalid','true');
         invalid.focus();
-        errorBox.textContent=label+'。'+invalid.validationMessage;
+        errorBox.textContent=label+'。'+(invalid.valueAsNumber<0?'请输入大于或等于 0 的数值。':invalid.validationMessage);
+        $('#summary').textContent='请检查问卷后重新提交。';
         return;
     }
     const profile=readProfile();
     quizSubmit.disabled=true;
     quizSubmit.setAttribute('aria-busy','true');
     quizSubmit.textContent='正在分析你的生活方式……';
+    $('#summary').textContent='正在检查问卷和宠物档案…';
     const slow=setTimeout(()=>{
         status.textContent='服务响应较慢，可能正在启动。请稍候…';
     },5500);
     try{
         const result=await api('/api/recommend',profile);
-        renderResult(result,profile);
+        renderResult(result);
         status.textContent='推荐结果已更新。';
         $('#match-results').scrollIntoView({block:'start',
             behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
     }catch(error){
-        errorBox.textContent=error.message;
         status.textContent='';
+        if(error.decision?.recommendation_status==='OUT_OF_DOMAIN'){
+            renderResult(error.decision);
+            $('#match-results').scrollIntoView({block:'start'});
+        }else{
+            errorBox.textContent=error.message;
+            if(error.decision) renderResult(error.decision);
+            else $('#summary').textContent='推荐暂时不可用，请稍后重新提交。';
+        }
     }finally{
         clearTimeout(slow);
         quizSubmit.disabled=false;
@@ -366,4 +580,4 @@ $('#scenario-apply').onclick=()=>{if(state.scenario){fillProfile(state.scenario)
 $('#export').onclick=()=>{if(!state.result)return;const r=state.result,u=state.profile;const lines=['# PawthFinder 宠物推荐报告','',`记录编号：${r.run_id}`,`模型模式：${modeText(r.mode)}`,'','## 问卷资料',...Object.entries(u).map(([k,v])=>`- ${k}: ${v}`),'','## 推荐结果'];for(const [i,p] of r.recommendations.entries())lines.push(`### ${i+1}. ${p.name} · ${p.score}/100`,...p.reasons.map(t=>'- '+t),...p.warnings.map(t=>'- 提醒：'+t),'');if(!r.recommendations.length)lines.push('暂无满足规则的宠物。');lines.push('## 未通过规则',...r.excluded.map(p=>`- ${p.name}：${p.blocked.join('；')}`),'','## 说明',r.notice,'所有档案阈值为教学示例。模拟训练指标不代表真实推荐效果。');const blob=new Blob([lines.join('\n')],{type:'text/markdown;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download=`PawthFinder_Report_${r.run_id.slice(0,8)}.md`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('已下载 Markdown 报告，可用文本编辑器打开。');};
 let defaults=null;
 for(const b of document.querySelectorAll('[data-preset]'))b.onclick=()=>{if(!defaults)return;let p={...defaults};if(b.dataset.preset==='busy')Object.assign(p,{time:.5,budget:500,years:3});if(b.dataset.preset==='active')Object.assign(p,{space:60,time:4,budget:2200,activity:5,noise:5,grooming:4,experience:1,years:18});fillProfile(p);notify('示例问卷已填入。请按真实情况修改后提交；当前结果尚未更新。');};
-api('/api/info').then(j=>{defaults=j.defaults;state.pets=j.pets;populateCostPets();$('#mode').textContent=modeText(j.mode);try{const saved=JSON.parse(localStorage.getItem('pawthfinder_compare')||'[]');if(Array.isArray(saved))state.selected=[...new Set(saved)].filter(id=>j.pets.some(p=>p.id===id)).slice(0,3);}catch{}$('#compare-count').textContent=state.selected.length;renderCatalog();renderCompare();renderHome();openLinkedProfile();}).catch(e=>{$('#mode').textContent=e.message;notify(e.message);});
+api('/api/info').then(j=>{defaults=j.defaults;state.pets=j.pets;populateAllergyOptions(j.allergy_options||[],j.allergy_notice);populateCostPets();$('#mode').textContent=modeText(j.mode);try{const saved=JSON.parse(localStorage.getItem('pawthfinder_compare')||'[]');if(Array.isArray(saved))state.selected=[...new Set(saved)].filter(id=>j.pets.some(p=>p.id===id)).slice(0,3);}catch{}$('#compare-count').textContent=state.selected.length;renderCatalog();renderCompare();renderHome();openLinkedProfile();}).catch(e=>{$('#mode').textContent=e.message;notify(e.message);});

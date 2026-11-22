@@ -28,7 +28,21 @@
 <label>可接受的噪声<select name="noise"><option value="1">1 · 很低</option><option value="2">2 · 较低</option><option value="3" selected>3 · 适中</option><option value="4">4 · 较高</option><option value="5">5 · 很高</option></select></label>
 <label>愿意承担的清洁护理强度<select name="grooming"><option value="1">1 · 很低</option><option value="2">2 · 较低</option><option value="3" selected>3 · 适中</option><option value="4">4 · 较高</option><option value="5">5 · 很高</option></select></label>
 <label>饲养经验<select name="experience"><option value="0">没有经验</option><option value="1">有一些经验</option><option value="2">经验较丰富</option></select></label>
-</div><div class="checks"><label><input name="pet_allowed" type="checkbox" checked> 居所允许养宠物</label><label><input name="backup" type="checkbox" checked> 已安排外出及紧急替代照护</label><label><input name="allergy" type="checkbox"> 有已知动物相关过敏</label></div>
+</div><div class="checks"><label><input name="pet_allowed" type="checkbox" checked> 居所允许养宠物</label><label><input name="backup" type="checkbox" checked> 已安排外出及紧急替代照护</label><label><input id="has-allergy" name="has_allergy" type="checkbox" aria-controls="allergy-questions" aria-expanded="false"> 有已知动物相关过敏</label></div>
+<div id="allergy-questions" class="allergy-disclosure" inert aria-hidden="true">
+  <div class="allergy-disclosure-content">
+    <fieldset id="allergy-fields" disabled>
+      <legend>过敏对象（可多选）</legend>
+      <div id="allergy-options" class="checks"></div>
+      <div class="checks">
+        <label><input id="allergy-other-toggle" type="checkbox" aria-controls="allergy-other-label" aria-expanded="false"> 其他过敏原</label>
+        <label><input name="allergy_uncertain" type="checkbox"> 不确定具体过敏原</label>
+      </div>
+      <label id="allergy-other-label" hidden>其他过敏原说明<input name="other_allergy" maxlength="100" disabled></label>
+      <p class="small" id="allergy-notice">过敏风险因人而异。请依据已知过敏对象作答。</p>
+    </fieldset>
+  </div>
+</div>
 <fieldset class="quiz-extra"><legend>作息和照护准备</legend>
   <div class="grid">
     <label>工作日连续离家多久（小时）<input name="alone_hours" type="number" min="0" max="16" step="1" value="8" required></label>
@@ -40,9 +54,30 @@
   </div>
 </fieldset>
 <p class="small">教学演示：档案阈值为示例设定，并非专业标准。问卷、推荐和反馈会保存在当前应用的匿名会话记录中。</p><button id="submit" type="submit">看看适合我的伙伴 →</button><p id="quiz-status" class="small" role="status"></p><p id="error" role="alert"></p></form></section>
-<section id="match-results" class="results" aria-live="polite"{% if pages_preview %} hidden{% endif %}><div class="section-title"><span>问卷结果</span><h2>你的匹配结果</h2></div><p id="summary">完成问卷，看看哪些伙伴可能适合你的日常。</p><div class="result-actions"><button type="button" id="export" class="secondary" disabled>下载推荐报告</button><button type="button" id="scenario-open" class="secondary" disabled>比较条件变化</button></div>
+<section id="match-results" class="results" aria-live="polite"{% if pages_preview %} hidden{% endif %}><div class="section-title"><span>问卷结果</span><h2>你的匹配结果</h2></div><p id="summary">完成问卷，看看哪些伙伴可能适合你的日常。</p>
+<p id="decision-notices" class="small" hidden></p>
+<article id="virtual-result" class="card virtual-result" hidden>
+  <h3 id="virtual-title"></h3>
+  <p id="virtual-message"></p>
+  <div id="virtual-preview" class="virtual-preview" role="img" aria-label="奶龙 3D 桌宠预览"></div>
+  <p id="virtual-preview-status" class="small" role="status" hidden></p>
+  <details id="virtual-guidance" open hidden>
+    <summary>触发的规则与可调整的条件</summary>
+    <div id="virtual-guidance-content"></div>
+  </details>
+  <div class="result-actions">
+    <button type="button" id="virtual-adopt">领养我的虚拟伙伴</button>
+    <button type="button" id="virtual-adjust" class="secondary">重新调整问卷</button>
+  </div>
+</article>
+<div class="result-actions"><button type="button" id="export" class="secondary" disabled>下载推荐报告</button><button type="button" id="scenario-open" class="secondary" disabled>比较条件变化</button></div>
 <div id="scenario-box" class="scenario-box" hidden><h3>如果照护条件改变了呢？</h3><p class="small">以当前显示的推荐问卷为基准，只调整下方三项；模拟不会写入历史。</p><form id="scenario-form"><div class="grid"><label>新月预算（港币）<input id="scenario-budget" type="number" min="0" max="10000" step="10" required></label><label>新每日时间（小时）<input id="scenario-time" type="number" min="0" max="12" step="0.1" required></label><label>新可用空间（㎡）<input id="scenario-space" type="number" min="0" max="500" step="0.5" required></label></div><button type="submit">计算变化</button></form><div id="scenario-result" aria-live="polite"></div><button type="button" id="scenario-apply" class="secondary" hidden>将模拟条件填回问卷</button></div>
-<div id="cards"></div><details id="excluded-panel" hidden><summary>查看未通过规则的宠物及原因</summary><div id="excluded"></div></details></section></main>
+<div id="cards"></div>
+<details id="decision-explanation" class="decision-explanation" hidden>
+  <summary>为什么得到这个结果</summary>
+  <div id="decision-trace"></div>
+  <details id="excluded-panel" hidden><summary>查看未通过规则的宠物及原因</summary><div id="excluded"></div></details>
+</details></section></main>
 <section class="view full-view" id="view-catalog" hidden>
   <div class="section-title"><span>认识伙伴</span><h2>先了解，再决定</h2></div>
   <p>查看 8 类真实宠物的照护档案并加入清单。奶龙是第 9 位幻想伙伴。</p>

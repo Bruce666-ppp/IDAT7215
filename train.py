@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 import numpy as np
 import torch
 from torch import nn
-from core import BASE,PETS,SCHEMA,CATALOG_HASH,FLAGS,OPTIONAL_PROFILE_FIELDS,USER_KEYS,features,validate,rule_score,assess
+from core import BASE,PETS,REAL_PETS,SCHEMA,CATALOG_HASH,FLAGS,OPTIONAL_PROFILE_FIELDS,USER_KEYS,features,validate,rule_score,assess
 from network import PetMLP
 
 def synthetic(n,seed):
@@ -22,7 +22,7 @@ def synthetic(n,seed):
             experience=r.randint(0,2),years=r.randint(1,25),allergy=r.random()<.15,
             pet_allowed=r.random()<.95,backup=r.random()<.9,alone_hours=r.randint(2,14),
             away_nights=r.randrange(8),habitat_control=r.random()<.4,live_insects=r.random()<.3))
-        for p in PETS:
+        for p in REAL_PETS:
             rows.append((str(i),u,p,rule_score(u,p)))
     return rows
 
@@ -55,7 +55,7 @@ def read_real(path, *, max_rows=None):
             raise ValueError('CSV 缺少 profile 或必填问卷列，请参考评分样表')
         for line,r in enumerate(reader,2):
             try:
-                if max_rows is not None and len(rows) >= max_rows:
+                if max_rows is not None and line-1 > max_rows:
                     raise ValueError(f'最多接收 {max_rows:,} 条评分')
                 if None in r or any(value is None for value in r.values()):
                     raise ValueError('列数与表头不一致')
@@ -68,6 +68,8 @@ def read_real(path, *, max_rows=None):
                 if uid in profiles and profiles[uid]!=fingerprint: raise ValueError('profile changed within user')
                 if (uid,p['id']) in pairs: raise ValueError('duplicate user-pet pair')
                 profiles[uid]=fingerprint; pairs.add((uid,p['id']))
+                if p.get('fictional'):
+                    continue
                 rows.append((uid,u,p,score))
             except (KeyError,ValueError,TypeError) as e:
                 raise ValueError(f'CSV 第 {line} 行无效：{e}') from e
@@ -102,10 +104,10 @@ def split_csv(path,rows,seed):
 
 def prepare_csv(path, seed=42, *, max_rows=None):
     rows = read_real(path, max_rows=max_rows)
+    if not rows:
+        raise ValueError('需要至少一种真实宠物的评分')
     if len({row[0] for row in rows}) < 20:
         raise ValueError('至少需要 20 位不同用户用于按用户划分')
-    if not any(not pet.get('fictional') for _, _, pet, _ in rows):
-        raise ValueError('需要至少一种真实宠物的评分')
     return rows, *split_csv(path, rows, seed)
 
 def tensors(rows):
@@ -180,7 +182,7 @@ def main():
     metrics={'source':source,'dataset_sha256':dataset_sha,'explicit_user_split':explicit_split,
        'trained_at':datetime.now(timezone.utc).isoformat(),'input_sources':sorted(sources),
        'dataset_rows':len(rows),'best_epoch':best_epoch,
-       'per_pet_rows':[{'id':p['id'],'name':p['display_name'],'rows':sum(c[p['id']] for c in per_pet)} for p in PETS],
+       'per_pet_rows':[{'id':p['id'],'name':p['display_name'],'rows':sum(c[p['id']] for c in per_pet)} for p in REAL_PETS],
        'prediction_sample':[{'label':round(float(labels[i]),4),'prediction':round(float(pred[i]),4)} for i in scatter_indices],
        'train_rows':len(tr),'val_rows':len(va),
        'disclaimer':'评估反映本次数据及其标签，不能代表真实照护结果。',

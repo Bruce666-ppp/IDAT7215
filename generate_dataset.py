@@ -5,7 +5,7 @@ import argparse,csv,hashlib,json,random,sqlite3
 from collections import Counter
 from contextlib import closing
 from pathlib import Path
-from core import BASE,PETS,USER_KEYS,CATALOG_HASH,validate,assess,rule_score
+from core import BASE,REAL_PETS,USER_KEYS,CATALOG_HASH,validate,assess,rule_score
 
 def profile(r,scenario):
     u=dict(space=round(r.uniform(3,90),1),time=round(r.uniform(.3,5),1),
@@ -50,7 +50,7 @@ def generate(out,users=6000,seed=2026):
             u=profile(r,scenario);fingerprint=json.dumps(u,sort_keys=True,separators=(',',':'))
             if fingerprint not in seen: seen.add(fingerprint);break
         people.append(dict(user_id=uid,scenario=scenario,split=split[uid],**u));scenario_counts[scenario]+=1
-        for p in PETS:
+        for p in REAL_PETS:
             score,teacher,ok=target(u,p,r)
             rows.append(dict(user_id=uid,profile=fingerprint,pet_id=p['id'],score=score,
                              split=split[uid],source='synthetic_generated_dataset',eligible=int(ok),teacher_score=teacher))
@@ -62,7 +62,7 @@ def generate(out,users=6000,seed=2026):
     write_csv('profiles.csv',people,['user_id','scenario','split']+USER_KEYS)
     write_csv('ratings.csv',rows,fields)
     for part in ['train','validation','test']: write_csv(part+'.csv',[x for x in rows if x['split']==part],fields)
-    (out/'pets_snapshot.json').write_text(json.dumps(PETS,ensure_ascii=False,indent=2),encoding='utf-8')
+    (out/'pets_snapshot.json').write_text(json.dumps(REAL_PETS,ensure_ascii=False,indent=2),encoding='utf-8')
     # Rebuild via temp database and atomically replace only this generated dataset.
     tmp=out/'synthetic.tmp.sqlite3'
     if tmp.exists(): tmp.unlink()
@@ -72,13 +72,13 @@ def generate(out,users=6000,seed=2026):
                          'CREATE TABLE ratings(user_id TEXT REFERENCES profiles(user_id), pet_id TEXT REFERENCES pets(pet_id), score REAL CHECK(score BETWEEN 0 AND 1), eligible INTEGER, teacher_score REAL, PRIMARY KEY(user_id,pet_id));'
                          'CREATE INDEX profile_split ON profiles(split);')
         con.executemany('INSERT INTO profiles VALUES (?,?,?,?)',[(p['user_id'],json.dumps({k:p[k] for k in USER_KEYS}),p['scenario'],p['split']) for p in people])
-        con.executemany('INSERT INTO pets VALUES (?,?)',[(p['id'],json.dumps(p,ensure_ascii=False)) for p in PETS])
+        con.executemany('INSERT INTO pets VALUES (?,?)',[(p['id'],json.dumps(p,ensure_ascii=False)) for p in REAL_PETS])
         con.executemany('INSERT INTO ratings VALUES (?,?,?,?,?)',[(x['user_id'],x['pet_id'],x['score'],x['eligible'],x['teacher_score']) for x in rows])
     tmp.replace(out/'synthetic.sqlite3')
     counts=Counter(split.values())
-    manifest=dict(dataset_id=f'pawthfinder-synthetic-v2-seed{seed}-n{users}',source='synthetic_generated_dataset',
-        generator_seed=seed,split_seed=42,users=users,pet_types=len(PETS),rows=len(rows),
-        users_by_split=dict(counts),rows_by_split={k:v*len(PETS) for k,v in counts.items()},
+    manifest=dict(dataset_id=f'pawthfinder-synthetic-v3-seed{seed}-n{users}',source='synthetic_generated_dataset',
+        generator_seed=seed,split_seed=42,users=users,pet_types=len(REAL_PETS),rows=len(rows),
+        users_by_split=dict(counts),rows_by_split={k:v*len(REAL_PETS) for k,v in counts.items()},
         eligible_rows_by_split=dict(eligible),eligible_rows_by_pet=dict(per_pet),scenario_counts=dict(scenario_counts),
         catalog_hash=CATALOG_HASH,noise_std=.025,
         warning='全部为程序合成数据；非真实调查、非兽医标签、非领养结果。模拟测试仅说明对生成机制的拟合。',
@@ -89,4 +89,4 @@ def generate(out,users=6000,seed=2026):
     return manifest
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--users',type=int,default=6000);p.add_argument('--seed',type=int,default=2026)
-    p.add_argument('--out',default=str(BASE/'data/synthetic_v2'));a=p.parse_args();generate(a.out,a.users,a.seed)
+    p.add_argument('--out',default=str(BASE/'data/synthetic_v3'));a=p.parse_args();generate(a.out,a.users,a.seed)

@@ -240,8 +240,10 @@ async function loadModel(){
                 '每个点为测试集中一条合格候选配对。虚线表示预测与标签相同。'));
         }
         if(m.per_pet_rows?.length){
+            const archivedVirtual=m.per_pet_rows.some(pet=>pet.id==='nailong');
             gallery.append(figure('各类伙伴的配对数',rowsGraph(m.per_pet_rows.map(pet=>[pet.name,pet.rows]),'各类伙伴的配对数'),
-                '统计本次上传或随附数据中的全部配对。'));
+                archivedVirtual?'随附旧版训练记录包含奶龙的零标签占位。当前推理和新训练只处理真实宠物。':
+                '统计本次训练数据中各真实宠物的配对数。'));
         }
         box.append(stats,facts,gallery,table(['方法','测试 MSE ↓','NDCG@3 ↑'],[
             ['神经网络',m.model_mse.toFixed(6),m.model_ranking.ndcg_at_3?.toFixed(4)??'不适用'],
