@@ -21,6 +21,7 @@ def create_app(db_path=None,engine=None):
     pages_origin=os.environ.get('PAWTH_PAGES_ORIGIN','').rstrip('/')
     require_model=os.environ.get('PAWTH_REQUIRE_MODEL')=='1'
     allow_training=os.environ.get('PAWTH_ALLOW_TRAINING','1')=='1'
+    temporary_records=os.environ.get('PAWTH_TEMPORARY_RECORDS')=='1'
     if os.environ.get('PAWTH_BEHIND_PROXY')=='1':
         app.wsgi_app=ProxyFix(app.wsgi_app,x_proto=1)
     secret=os.environ.get('PAWTH_SECRET')
@@ -72,7 +73,7 @@ def create_app(db_path=None,engine=None):
     @app.get('/')
     def index():
         owner()
-        return render_template('index.html', allow_training=allow_training)
+        return render_template('index.html', allow_training=allow_training, temporary_records=temporary_records)
     @app.get('/api/health')
     def health():
         try:

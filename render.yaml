@@ -1,19 +1,17 @@
 services:
-  - name: idat7215-pawthfinder
+  - name: idat7215-pawthfinder-demo
     type: web
     runtime: docker
     branch: main
     region: singapore
-    plan: 1c-2g
+    plan: free
     healthCheckPath: /api/health
     autoDeployTrigger: commit
-    disk:
-      name: pawthfinder-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: PAWTH_DATA_DIR
-        value: /var/data
+        value: /tmp/pawthfinder-demo
+      - key: PAWTH_TEMPORARY_RECORDS
+        value: "1"
       - key: PAWTH_SECRET
         generateValue: true
       - key: PAWTH_BEHIND_PROXY

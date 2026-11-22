@@ -67,9 +67,11 @@ def test_hosted_api_cookies_health_and_mutations(tmp_path,monkeypatch):
     monkeypatch.setenv('PAWTH_PAGES_ORIGIN',pages_origin)
     monkeypatch.setenv('PAWTH_ALLOW_TRAINING','0')
     monkeypatch.setenv('PAWTH_REQUIRE_MODEL','1')
+    monkeypatch.setenv('PAWTH_TEMPORARY_RECORDS','1')
     app=create_app(tmp_path/'app.sqlite3',Recommender(tmp_path/'missing.pt'))
     client=app.test_client()
     index=client.get('/',base_url=origin)
+    assert '服务休眠或重启后会清空问卷、评分和社区记录' in index.get_data(as_text=True)
     cookie=index.headers['Set-Cookie']
     assert all(attribute in cookie for attribute in ('Secure','HttpOnly','SameSite=Lax'))
     health=client.get('/api/health',base_url=origin,headers={'Origin':pages_origin})
