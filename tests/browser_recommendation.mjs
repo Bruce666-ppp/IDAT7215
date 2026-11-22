@@ -127,12 +127,12 @@ try{
     await screenshot('virtual-result');
     await click('#virtual-adopt');
     await wait("location.hash==='#compare' && document.querySelector('#pet-canvas canvas')?.dataset.species==='nailong'");
-    await wait("!document.querySelector('#pet-message').hidden && document.querySelector('#pet-message').textContent.includes('Nailong')");
+    await wait("!document.querySelector('#pet-message').hidden && document.querySelector('#pet-message').textContent.includes('Naylong')");
 
     await click('[data-view=match]');
     await cdp('Fetch.enable',{patterns:[{urlPattern:'*/api/recommend',requestStage:'Request'}]});
     await click('#submit');
-    await wait("document.querySelector('#error').textContent.includes('网络连接') && !document.querySelector('#submit').disabled");
+    await wait("document.querySelector('#error').textContent.includes('Check your connection') && !document.querySelector('#submit').disabled");
     assert.ok(await evaluate("document.querySelector('#virtual-result').hidden && !state.result"));
     assert.deepEqual(exceptions,[]);
     console.log('Browser checks passed: allergen options, clearing, rule A01, out-of-domain feedback, 3D preview and adoption, network failure recovery.');

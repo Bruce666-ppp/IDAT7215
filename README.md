@@ -100,7 +100,8 @@ requirements-tested.txt  本次实际测试环境的锁定版本（若提供）
 data/pets.json         可编辑的 9 位演示伙伴知识库
 artifacts/model.pt     演示模型权重
 artifacts/metrics.json  测试集结果与训练曲线数值
-templates/index.html   中文问卷页面
+data/pets.en.json      英文宠物档案展示文案
+templates/index.html   英式英文界面与问卷
 static/                样式与交互脚本
 tests/                 规则、梯度、模型兼容、API、会话测试
 DESIGN.md              完整设计与数据接入说明

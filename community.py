@@ -16,14 +16,14 @@ COMMENTS = '(SELECT COUNT(*) FROM community_comments WHERE post_id=p.id)'
 POPULARITY = f'({LIKES} + 2 * {COMMENTS})'
 
 DEMO_POSTS = (
-    ('daily', '日常示例', 'post', 'life', '养宠日常', '',
-     '周末把照护时间单独记了下来，才发现工作日和休息日的作息差很多。你会怎么安排忙碌时的照护？'),
-    ('desk-pet', '桌宠示例', 'post', 'life', '桌宠体验', '',
-     '今天把 3D 兔子拖到了桌角。调低体力后，它停下来睡觉，决策面板也显示了触发的规则。'),
-    ('knowledge', '知识示例', 'post', 'knowledge', '选宠准备', '',
-     '选宠之前可以先列三件事：每天能留出的时间、可用空间，以及常规开支。想一想旅行时由谁替代照护。'),
-    ('paper', '阅读示例', 'paper', 'research', '阅读笔记', '阅读卡片示例：先看数据和评估',
-     '分享论文时，可以在摘要里记录数据来源、训练与测试怎么划分，以及结果适用于哪些场景。此帖用于演示论文分享卡片。'),
+    ('daily', 'Daily Life Demo', 'post', 'life', 'Pet Life', '',
+     'I tracked pet care separately over the weekend and realised how different my weekday and weekend routines are. How do you make time for care on busy days?'),
+    ('desk-pet', 'Desktop Pet Demo', 'post', 'life', 'Desktop Pets', '',
+     'I dragged the 3D rabbit to the corner of my desk today. When I lowered its energy, it stopped to sleep, and the decision monitor showed which rule triggered.'),
+    ('knowledge', 'Care Tips Demo', 'post', 'knowledge', 'Preparing for a Pet', '',
+     'Before choosing a pet, list three things: the time you can set aside each day, the space you have and your regular costs. Think about who can provide care while you travel.'),
+    ('paper', 'Reading Demo', 'paper', 'research', 'Reading Notes', 'Reading Card Demo: Start with the data and evaluation',
+     'When sharing a paper, you can note where the data came from, how the training and test sets were split and where the results apply. This post demonstrates the research card.'),
 )
 
 SCHEMA = """
@@ -64,6 +64,11 @@ def init_community(con):
     if 'topic' not in columns:
         con.execute("ALTER TABLE community_posts ADD COLUMN topic TEXT NOT NULL DEFAULT ''")
     if con.execute('SELECT 1 FROM community_posts LIMIT 1').fetchone():
+        con.executemany("""
+            UPDATE community_posts SET author=?, topic=?, title=?, body=?
+            WHERE id=? AND owner='community-demo'
+        """, [(name, topic, title, body, f'demo-{key}')
+              for key, name, _, _, topic, title, body in DEMO_POSTS])
         return
     now = datetime.now(timezone.utc)
     con.executemany("""
@@ -82,12 +87,12 @@ def timestamp():
 def field(values, key, limit, label, required=False):
     value = values.get(key, '')
     if not isinstance(value, str):
-        raise ValueError(f'{label}须为文本')
+        raise ValueError(f'{label} must be text.')
     value = value.strip()
     if required and not value:
-        raise ValueError(f'请填写{label}')
+        raise ValueError(f'Enter a value for {label}.')
     if len(value) > limit:
-        raise ValueError(f'{label}最多 {limit} 个字符')
+        raise ValueError(f'{label} can contain up to {limit} characters.')
     return value
 
 
@@ -97,7 +102,7 @@ def paper_link(url):
         if (any(character.isspace() or ord(character) < 32 for character in url)
                 or '\\' in url or parsed.scheme not in ('http', 'https')
                 or not parsed.hostname or parsed.username is not None):
-            raise ValueError('请填写有效的 HTTP 或 HTTPS 论文链接')
+            raise ValueError('Enter a valid HTTP or HTTPS paper link.')
     return url
 
 
@@ -108,9 +113,9 @@ def pdf_attachment(upload):
     name = ''.join(character for character in name if character.isprintable()).strip()
     data = upload.stream.read(PDF_LIMIT + 1)
     if len(data) > PDF_LIMIT:
-        raise ValueError('PDF 最大为 8 MB')
+        raise ValueError('The maximum PDF size is 8 MB.')
     if not name.lower().endswith('.pdf') or not data.startswith(b'%PDF-') or b'%%EOF' not in data[-1024:]:
-        raise ValueError('请选择有效的 PDF 文件')
+        raise ValueError('Choose a valid PDF file.')
     return name[:-4][:140] + '.pdf', data
 
 
@@ -126,15 +131,15 @@ def register_community(app, connect, owner):
         init_community(con)
 
     def author(values=None):
-        default = session.get('community_author') or '访客·' + owner()[:5].upper()
-        return (field(values, 'author', 24, '昵称') or default) if values is not None else default
+        default = session.get('community_author') or 'Guest · ' + owner()[:5].upper()
+        return (field(values, 'author', 24, 'Display name') or default) if values is not None else default
 
     @community.get('/posts')
     def posts():
         viewer = owner()
         view = request.args.get('view', 'all')
         if view not in ('all', 'popular', 'life', 'knowledge', 'paper', 'saved', 'mine'):
-            return jsonify(error='筛选项无效'), 400
+            return jsonify(error='The selected filter is invalid.'), 400
         conditions = []
         args = [viewer, viewer]
         if view == 'paper':
@@ -150,7 +155,7 @@ def register_community(app, connect, owner):
             args.append(viewer)
         query = request.args.get('q', '').strip().strip('#＃').strip()
         if len(query) > 100:
-            return jsonify(error='搜索词最多 100 个字符'), 400
+            return jsonify(error='Search terms can contain up to 100 characters.'), 400
         if query:
             conditions.append("instr(lower(p.title || char(10) || p.body || char(10) || p.topic),lower(?)) > 0")
             args.append(query)
@@ -160,7 +165,7 @@ def register_community(app, connect, owner):
                 cursor_columns = f'{POPULARITY}, p.created_at, p.id' if ranking else 'p.created_at, p.id'
                 cursor = con.execute(f'SELECT {cursor_columns} FROM community_posts p WHERE id = ?', (before,)).fetchone()
                 if cursor is None:
-                    return jsonify(error='帖子位置已变化，请刷新'), 400
+                    return jsonify(error='The post order has changed. Refresh the feed.'), 400
                 placeholders = ', '.join('?' for _ in cursor)
                 conditions.append(f'({cursor_columns}) < ({placeholders})')
                 args.extend(cursor)
@@ -202,24 +207,24 @@ def register_community(app, connect, owner):
     def create_post():
         request.max_content_length = PDF_LIMIT + 64 * 1024
         if request.mimetype not in ('multipart/form-data', 'application/x-www-form-urlencoded'):
-            return jsonify(error='请使用发帖表单'), 415
+            return jsonify(error='Use the post form to publish.'), 415
         values = request.form
         kind = values.get('kind', 'post')
         if kind not in ('post', 'paper'):
-            return jsonify(error='请选择有效的帖子类型'), 400
+            return jsonify(error='Choose a valid post type.'), 400
         try:
             is_paper = kind == 'paper'
             category = 'research' if is_paper else values.get('category', 'life')
             if not is_paper and category not in ('life', 'knowledge'):
-                raise ValueError('请选择有效的帖子分类')
-            topic = field(values, 'topic', 28, '话题').strip('#＃').strip()
+                raise ValueError('Choose a valid post category.')
+            topic = field(values, 'topic', 28, 'Topic').strip('#＃').strip()
             name = author(values)
-            body = field(values, 'body', 3000, '正文', required=not is_paper)
-            title = field(values, 'title', 120, '论文标题', required=True) if is_paper else ''
-            url = paper_link(field(values, 'paper_url', 2048, '论文链接')) if is_paper else ''
+            body = field(values, 'body', 3000, 'Post text', required=not is_paper)
+            title = field(values, 'title', 120, 'Paper title', required=True) if is_paper else ''
+            url = paper_link(field(values, 'paper_url', 2048, 'Paper link')) if is_paper else ''
             attachment = pdf_attachment(request.files.get('paper')) if is_paper else None
             if is_paper and not (body or url or attachment):
-                raise ValueError('请填写论文摘要，或添加链接或 PDF')
+                raise ValueError('Add a paper summary, a link or a PDF.')
         except ValueError as error:
             return jsonify(error=str(error)), 400
         post_id = uuid4().hex
@@ -237,12 +242,12 @@ def register_community(app, connect, owner):
     def like(post_id):
         body = request.get_json(silent=True)
         if not isinstance(body, dict) or type(body.get('liked')) is not bool:
-            return jsonify(error='需要提供点赞状态'), 400
+            return jsonify(error='Specify whether the post is liked.'), 400
         viewer = owner()
         liked = body['liked']
         with closing(connection()) as con, con:
             if not con.execute("SELECT 1 FROM community_posts WHERE id=?", (post_id,)).fetchone():
-                return jsonify(error='找不到帖子'), 404
+                return jsonify(error='Post not found.'), 404
             if liked:
                 con.execute("INSERT OR IGNORE INTO community_likes VALUES (?, ?)", (post_id, viewer))
             else:
@@ -254,11 +259,11 @@ def register_community(app, connect, owner):
     def save(post_id):
         body = request.get_json(silent=True)
         if not isinstance(body, dict) or type(body.get('saved')) is not bool:
-            return jsonify(error='需要提供收藏状态'), 400
+            return jsonify(error='Specify whether the post is saved.'), 400
         viewer, saved = owner(), body['saved']
         with closing(connection()) as con, con:
             if not con.execute('SELECT 1 FROM community_posts WHERE id=?', (post_id,)).fetchone():
-                return jsonify(error='找不到帖子'), 404
+                return jsonify(error='Post not found.'), 404
             if saved:
                 con.execute('INSERT OR IGNORE INTO community_saves VALUES (?, ?)', (post_id, viewer))
             else:
@@ -269,7 +274,7 @@ def register_community(app, connect, owner):
     def comments(post_id):
         with closing(connection()) as con:
             if not con.execute("SELECT 1 FROM community_posts WHERE id=?", (post_id,)).fetchone():
-                return jsonify(error='找不到帖子'), 404
+                return jsonify(error='Post not found.'), 404
             args = [post_id]
             older = ''
             if before := request.args.get('before'):
@@ -277,7 +282,7 @@ def register_community(app, connect, owner):
                     SELECT created_at, id FROM community_comments WHERE post_id=? AND id=?
                 """, (post_id, before)).fetchone()
                 if cursor is None:
-                    return jsonify(error='评论位置已变化，请刷新'), 400
+                    return jsonify(error='The comment order has changed. Refresh the comments.'), 400
                 older = 'AND (created_at, id) < (?, ?)'
                 args.extend(cursor)
             rows = con.execute(f"""
@@ -293,15 +298,15 @@ def register_community(app, connect, owner):
     def create_comment(post_id):
         values = request.get_json(silent=True)
         if not isinstance(values, dict):
-            return jsonify(error='请填写评论'), 400
+            return jsonify(error='Enter a comment.'), 400
         try:
             name = author(values)
-            body = field(values, 'body', 500, '评论', required=True)
+            body = field(values, 'body', 500, 'Comment', required=True)
         except ValueError as error:
             return jsonify(error=str(error)), 400
         with closing(connection()) as con, con:
             if not con.execute("SELECT 1 FROM community_posts WHERE id=?", (post_id,)).fetchone():
-                return jsonify(error='找不到帖子'), 404
+                return jsonify(error='Post not found.'), 404
             con.execute("INSERT INTO community_comments VALUES (?, ?, ?, ?, ?, ?)",
                         (uuid4().hex, post_id, owner(), name, body, timestamp()))
         session['community_author'] = name
@@ -312,7 +317,7 @@ def register_community(app, connect, owner):
         with closing(connection()) as con:
             data = con.execute("SELECT filename, contents FROM community_papers WHERE post_id=?", (post_id,)).fetchone()
         if data is None:
-            return jsonify(error='找不到 PDF 附件'), 404
+            return jsonify(error='PDF attachment not found.'), 404
         return send_file(BytesIO(data['contents']), mimetype='application/pdf',
                          as_attachment=True, download_name=data['filename'])
 

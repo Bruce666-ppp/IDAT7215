@@ -18,25 +18,25 @@ function apiUrl(path){
     return new URL(pagesPreview?endpoint+'.json':endpoint,apiBase);
 }
 async function requestApi(path,options={},timeout=25000){
-    if(pagesPreview&&options.method==='POST') throw Error('请打开在线应用提交数据。');
+    if(pagesPreview&&options.method==='POST') throw Error('Open the online app to submit data.');
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),timeout);
     try{
         const response=await fetch(apiUrl(path),{...options,signal:controller.signal,credentials:'same-origin'});
         const result=await response.json().catch(()=>null);
-        if(controller.signal.aborted) throw Error('请求超时');
+        if(controller.signal.aborted) throw Error('The request timed out.');
         if(!response.ok){
             const fallback=[502,503,504].includes(response.status)
-                ? '服务可能正在启动或暂不可用，请稍后重试。' : '服务请求失败，请重试。';
+                ? 'The service may be starting or temporarily unavailable. Try again shortly.' : 'The request failed. Try again.';
             const error=Error(result?.error||fallback);
             if(result?.recommendation_status) error.decision=result;
             throw error;
         }
-        if(!result) throw Error('服务返回了无法读取的响应，请重试。');
+        if(!result) throw Error('The service returned an unreadable response. Try again.');
         return result;
     }catch(error){
-        if(controller.signal.aborted) throw Error('等待服务响应超时。请检查网络或稍后重新提交。');
-        if(error instanceof TypeError) throw Error('网络连接中断或无法连接服务，请检查网络后重试。');
+        if(controller.signal.aborted) throw Error('The service took too long to respond. Check your connection or try again shortly.');
+        if(error instanceof TypeError) throw Error('The service could not be reached. Check your connection and try again.');
         throw error;
     }finally{
         clearTimeout(timer);
@@ -57,12 +57,12 @@ async function openOnlineQuiz(){
     const health=new URL('api/health',onlineQuiz.href);
     checkingOnlineQuiz=true;
     retry.hidden=true;
-    status.textContent='正在连接在线推荐服务…';
+    status.textContent='Connecting to the recommendation service…';
     const slow=setTimeout(()=>{
-        status.textContent='推荐服务可能正在启动，请稍候…';
+        status.textContent='The recommendation service may be starting up. Please wait…';
     },5500);
     const deadline=Date.now()+65000;
-    let unavailable='暂时无法连接在线推荐服务。请重试连接。';
+    let unavailable='The online recommendation service could not be reached. Try reconnecting.';
     try{
         while(!match.hidden&&Date.now()<deadline){
             const controller=new AbortController();
@@ -75,7 +75,7 @@ async function openOnlineQuiz(){
                     return;
                 }
                 if(result?.model_loaded===false){
-                    unavailable='在线服务尚未载入推荐模型，请稍后重试。';
+                    unavailable='The online service has yet to load the model. Try again shortly.';
                     break;
                 }
             }catch{
@@ -97,9 +97,9 @@ async function openOnlineQuiz(){
 $('#online-retry')?.addEventListener('click',openOnlineQuiz);
 function notify(text){$('#toast').textContent=text;}
 function modeText(mode){
-    if(mode==='rules_only') return '专家规则备用模式 · 深度学习模型未启用';
-    if(mode==='uploaded_user_data') return '本地上传评分 · 自训练模型';
-    return mode.startsWith('synthetic') ? '随附合成数据 · 自训练模型' : '导入评分数据 · 自训练模型';
+    if(mode==='rules_only') return 'Expert System fallback · Model inference unavailable';
+    if(mode==='uploaded_user_data') return 'Locally uploaded ratings · Trained model';
+    return mode.startsWith('synthetic') ? 'Bundled synthetic dataset · Trained model' : 'Imported ratings · Trained model';
 }
 function list(items){const ul=node('ul');for(const text of items)ul.append(node('li',text));return ul;}
 function updateOtherAllergy(){
@@ -195,11 +195,11 @@ window.addEventListener('DOMContentLoaded',showFromLocation);
 window.addEventListener('hashchange',showFromLocation);
 for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>show(b.dataset.view);
 function petArt(p){const d=node('div',undefined,`pet-art art-${p.art_index??0}`);d.setAttribute('role','img');d.setAttribute('aria-label',p.display_name||p.name);return d;}
-function renderHome(){$('#home-pets').replaceChildren();for(const p of state.pets){const card=node('button',undefined,'home-pet');card.type='button';card.append(petArt(p));const meta=node('div',undefined,'home-pet-meta');meta.append(node('span',String(p.art_index+1).padStart(2,'0'),'pet-number'),node('h3',p.display_name||p.name),node('span',p.fictional?'幻想伙伴':'了解一下 ↗','pet-link'));card.append(meta,node('p',p.tagline));card.onclick=()=>show('catalog',p.id);$('#home-pets').append(card);}}
+function renderHome(){$('#home-pets').replaceChildren();for(const p of state.pets){const card=node('button',undefined,'home-pet');card.type='button';card.append(petArt(p));const meta=node('div',undefined,'home-pet-meta');meta.append(node('span',String(p.art_index+1).padStart(2,'0'),'pet-number'),node('h3',p.display_name||p.name),node('span',p.fictional?'Virtual companion':'Meet them ↗','pet-link'));card.append(meta,node('p',p.tagline));card.onclick=()=>show('catalog',p.id);$('#home-pets').append(card);}}
 $('#start-quiz').onclick=()=>show('match');$('#home-guide').onclick=()=>show('match');
 function compareButton(p){const b=node('button',undefined,'compare-button');b.type='button';b.dataset.pet=p.id;b.onclick=()=>toggleCompare(p.id);updateCompareButton(b);return b;}
-function updateCompareButton(b){const active=state.selected.includes(b.dataset.pet);b.textContent=active?'已加入 · 点击移除':'＋ 加入对比';b.classList.toggle('active',active);b.setAttribute('aria-label',`${active?'移除对比':'加入对比'} ${state.pets.find(p=>p.id===b.dataset.pet)?.name||''}`);b.setAttribute('aria-pressed',String(active));}
-function toggleCompare(id){if(state.selected.includes(id))state.selected=state.selected.filter(x=>x!==id);else{if(state.selected.length>=3){notify('最多同时对比 3 类宠物，请先移除一项。');return;}state.selected.push(id);}try{localStorage.setItem('pawthfinder_compare',JSON.stringify(state.selected));}catch{}$('#compare-count').textContent=state.selected.length;for(const b of document.querySelectorAll('.compare-button'))updateCompareButton(b);renderCompare();notify(`对比清单中有 ${state.selected.length} 类宠物。`);}
+function updateCompareButton(b){const active=state.selected.includes(b.dataset.pet);b.textContent=active?'In My List · Click to remove':'＋ Add to My List';b.classList.toggle('active',active);b.setAttribute('aria-label',`${active?'Remove from My List':'Add to My List'} ${state.pets.find(p=>p.id===b.dataset.pet)?.name||''}`);b.setAttribute('aria-pressed',String(active));}
+function toggleCompare(id){if(state.selected.includes(id))state.selected=state.selected.filter(x=>x!==id);else{if(state.selected.length>=3){notify('You can compare up to three pets. Remove one before adding another.');return;}state.selected.push(id);}try{localStorage.setItem('pawthfinder_compare',JSON.stringify(state.selected));}catch{}$('#compare-count').textContent=state.selected.length;for(const b of document.querySelectorAll('.compare-button'))updateCompareButton(b);renderCompare();notify(`My List has ${state.selected.length} ${state.selected.length === 1 ? 'pet' : 'pets'}.`);}
 function table(headers,rows){const wrap=node('div',undefined,'table-wrap'),t=node('table'),thead=node('thead'),tr=node('tr');for(const h of headers)tr.append(node('th',h));thead.append(tr);t.append(thead);const body=node('tbody');for(const row of rows){const tr=node('tr');for(const v of row){const td=node('td');if(v instanceof Node)td.append(v);else td.textContent=v;tr.append(td);}body.append(tr);}t.append(body);wrap.append(t);return wrap;}
 const carePredicates={
     quiet: pet=>pet.noise<=2,
@@ -225,12 +225,12 @@ function renderCatalog(){
     const sort=$('#catalog-sort').value;
     if(sort!=='name') pets.sort((a,b)=>a[sort]-b[sort]);
     $('#catalog-grid').replaceChildren();
-    $('#catalog-count').textContent='显示 '+pets.length+' / '+state.pets.length+' 位伙伴';
+    $('#catalog-count').textContent='Showing '+pets.length+' / '+state.pets.length+' companions';
     if(!pets.length){
-        $('#catalog-grid').append(node('p','没有符合条件的档案，请调整筛选。','empty'));
+        $('#catalog-grid').append(node('p','No profiles match these filters. Try adjusting them.','empty'));
         return;
     }
-for(const p of pets){const c=node('article',undefined,'catalog-card');c.id='pet-'+p.id;c.append(petArt(p),node('h3',p.display_name||p.name),node('p',p.note));if(p.fictional){c.append(node('span','幻想伙伴 · 不参与真实推荐','fiction-tag'));$('#catalog-grid').append(c);continue;}const facts=node('div',undefined,'facts');for(const [label,value] of [['每月预算',`HK$ ${p.budget}`],['每日时间',`${p.time} 小时`],['可用空间',`${p.space} ㎡`],['承诺期限',`${p.years} 年`]]){const d=node('div',label);d.append(node('strong',value));facts.append(d);}c.append(facts);const detail=node('details');detail.append(node('summary','更多照护属性'),list([`活动强度 ${p.activity}/5；噪声等级 ${p.noise}/5`,`护理强度 ${p.grooming}/5；经验等级 ${p.experience}/2`,`年度常规预算示例 HK$ ${p.budget*12}，不包含初始设备和意外医疗。`,'档案未由专业人士审定，不等于具体动物的照护标准。']));if(p.care_source){const source=node('a','阅读照护资料','care-source');source.href=p.care_source;source.target='_blank';source.rel='noopener noreferrer';detail.append(source);}c.append(detail,compareButton(p));$('#catalog-grid').append(c);}}
+for(const p of pets){const c=node('article',undefined,'catalog-card');c.id='pet-'+p.id;c.append(petArt(p),node('h3',p.display_name||p.name),node('p',p.note));if(p.fictional){c.append(node('span','Virtual companion · Separate from real-pet recommendations','fiction-tag'));$('#catalog-grid').append(c);continue;}const facts=node('div',undefined,'facts');for(const [label,value] of [['Monthly budget',`HK$ ${p.budget}`],['Daily care time',`${p.time} h`],['Available space',`${p.space} m²`],['Care commitment',`${p.years} years`]]){const d=node('div',label);d.append(node('strong',value));facts.append(d);}c.append(facts);const detail=node('details');detail.append(node('summary','More care details'),list([`Activity ${p.activity}/5 · Noise ${p.noise}/5`,`Grooming and cleaning ${p.grooming}/5 · Experience ${p.experience}/2`,`Example annual budget HK$ ${p.budget*12}, excluding equipment and unexpected veterinary costs.`,'These teaching profiles are unreviewed by care professionals. Care needs vary by individual animal.']));if(p.care_source){const source=node('a','Read care guidance','care-source');source.href=p.care_source;source.target='_blank';source.rel='noopener noreferrer';detail.append(source);}c.append(detail,compareButton(p));$('#catalog-grid').append(c);}}
 for(const id of ['catalog-search','catalog-budget','catalog-sort']) $('#'+id).addEventListener('input',renderCatalog);
 for(const button of careButtons){
     button.onclick=()=>{
@@ -250,7 +250,7 @@ function renderCost(){
     const fields=['monthly','setup','reserve'].map(name=>$('#cost-'+name));
     const complete=fields.every(field=>field.value!=='' && field.validity.valid);
     const [monthly,setup,reserve]=fields.map(field=>Number(field.value));
-    const currency=new Intl.NumberFormat('zh-HK',{style:'currency',currency:'HKD',maximumFractionDigits:0});
+    const currency=new Intl.NumberFormat('en-GB',{style:'currency',currency:'HKD',maximumFractionDigits:0});
     $('#cost-total').value=complete ? currency.format(monthly*12+setup+reserve) : '—';
 }
 
@@ -277,10 +277,10 @@ $('#compare-pets').addEventListener('click',async event=>{
     const button=event.target.closest('[data-generate-desktop-pet]');
     if(!button)return;
     try {
-        const {generateDesktopPet}=await import('./desktop-pet.js');
+        const {generateDesktopPet}=await import('./desktop-pet.js?v=en-GB');
         generateDesktopPet(button.dataset.generateDesktopPet);
     } catch(error) {
-        notify('桌宠组件加载失败，请刷新后重试。');
+        notify('The desktop pet could not load. Refresh and try again.');
         console.error('Pico desktop pet',error);
     }
 });
@@ -302,9 +302,9 @@ for(const pet of cards){
     $('#compare-pets').append(card);
 }
 if(!pets.length)return;
-const rows=[['每月预算（港币）',...pets.map(p=>p.budget)],['年度常规预算（港币）',...pets.map(p=>p.budget*12)],['每日照护时间（小时）',...pets.map(p=>p.time)],['可用空间（㎡）',...pets.map(p=>p.space)],['承诺期限（年）',...pets.map(p=>p.years)],['活动强度 / 5',...pets.map(p=>p.activity)],['噪声等级 / 5',...pets.map(p=>p.noise)],['护理强度 / 5',...pets.map(p=>p.grooming)],['经验等级 / 2',...pets.map(p=>p.experience)],['照护提醒',...pets.map(p=>p.note)]];
-if(state.result?.run_id){rows.push(['当前显示推荐中的状态',...pets.map(p=>{const yes=state.result.recommendations.find(x=>x.id===p.id);return yes?`适配评分 ${yes.score.toFixed(1)}`:'未通过规则';})]);}
-rows.push(['清单操作',...pets.map(p=>{const b=node('button','移除','secondary');b.onclick=()=>toggleCompare(p.id);return b;})]);$('#compare-content').append(table(['属性',...pets.map(p=>p.emoji+' '+p.name)],rows));}
+const rows=[['Monthly budget (HKD)',...pets.map(p=>p.budget)],['Annual costs (HKD)',...pets.map(p=>p.budget*12)],['Daily care time (hours)',...pets.map(p=>p.time)],['Available space (m²)',...pets.map(p=>p.space)],['Care commitment (years)',...pets.map(p=>p.years)],['Activity / 5',...pets.map(p=>p.activity)],['Noise / 5',...pets.map(p=>p.noise)],['Grooming and cleaning / 5',...pets.map(p=>p.grooming)],['Experience / 2',...pets.map(p=>p.experience)],['Care notes',...pets.map(p=>p.note)]];
+if(state.result?.run_id){rows.push(['Current recommendation',...pets.map(p=>{const yes=state.result.recommendations.find(x=>x.id===p.id);return yes?`Compatibility score ${yes.score.toFixed(1)}`:'Filtered out';})]);}
+rows.push(['List actions',...pets.map(p=>{const b=node('button','Remove','secondary');b.onclick=()=>toggleCompare(p.id);return b;})]);$('#compare-content').append(table(['Attribute',...pets.map(p=>p.emoji+' '+p.name)],rows));}
 const virtualResult=$('#virtual-result');
 const adoptPartner=$('#virtual-adopt');
 let previewScene,previewLoading;
@@ -320,7 +320,7 @@ async function playVirtualPreview(){
     const request=++previewRequest;
     const status=$('#virtual-preview-status');
     status.hidden=false;
-    status.textContent='正在加载奶龙 3D 模型…';
+    status.textContent='Loading the Naylong 3D model…';
     try{
         previewLoading ||= import('./desktop-pet-scene.js').then(async module=>{
             previewScene ||= module.createPetScene($('#virtual-preview'));
@@ -334,7 +334,7 @@ async function playVirtualPreview(){
         status.hidden=true;
     }catch{
         if(request!==previewRequest) return;
-        status.textContent='暂时无法加载 3D 预览，可在「我的清单」重试。';
+        status.textContent='The 3D preview could not load. Try again from My List.';
     }
 }
 document.addEventListener('visibilitychange',()=>{
@@ -346,12 +346,12 @@ adoptPartner.onclick=async()=>{
     if(!companion) return;
     adoptPartner.disabled=true;
     try{
-        const {generateDesktopPet}=await import('./desktop-pet.js');
+        const {generateDesktopPet}=await import('./desktop-pet.js?v=en-GB');
         if(state.result?.virtual_companion!==companion) return;
         show('compare');
         generateDesktopPet(companion.id);
     }catch{
-        notify('桌宠模块暂时无法载入，请稍后重试。');
+        notify('The desktop pet is temporarily unavailable. Try again shortly.');
     }finally{
         adoptPartner.disabled=false;
     }
@@ -379,7 +379,7 @@ function renderVirtualResult(result){
     const companion=result.virtual_companion;
     virtualResult.hidden=!companion;
     if(!companion) return;
-    $('#virtual-title').textContent=companion.name+(companion.optional?' · 可选虚拟伙伴':' · 你的虚拟伙伴');
+    $('#virtual-title').textContent=companion.name+(companion.optional?' · Optional virtual companion':' · Your virtual companion');
     $('#virtual-message').textContent=companion.message;
     const guidance=$('#virtual-guidance');
     const triggers=result.triggered_rules.filter(rule=>rule.kind==='hard_constraint');
@@ -395,13 +395,13 @@ function renderVirtualResult(result){
 }
 
 const inferenceLabels={
-    EXECUTED:'已对通过筛选的真实宠物执行 PyTorch 推理。',
-    RULES_ONLY:'当前使用专家规则备用评分。',
-    SKIPPED_NO_ELIGIBLE:'硬性筛选后没有候选，模型推理未执行。',
-    SKIPPED_OUT_OF_DOMAIN:'输入超出模型适用范围，模型推理未执行。',
-    SKIPPED_INVALID_INPUT:'输入校验未通过，模型推理未执行。',
-    FAILED:'计算服务遇到问题。',
-    NOT_RUN:'未执行模型推理。',
+    EXECUTED:'PyTorch inference ran on the real pets that passed screening.',
+    RULES_ONLY:'Compatibility scores use the Expert System fallback.',
+    SKIPPED_NO_ELIGIBLE:'Hard Constraint Filtering left no candidates, so model inference did not run.',
+    SKIPPED_OUT_OF_DOMAIN:'Model inference was skipped because your answers are outside the model’s supported range.',
+    SKIPPED_INVALID_INPUT:'Model inference was skipped because the quiz answers did not pass validation.',
+    FAILED:'The inference service encountered a problem.',
+    NOT_RUN:'Model inference did not run.',
 };
 function renderDecisionTrace(result){
     const details=$('#decision-explanation');
@@ -413,42 +413,42 @@ function renderDecisionTrace(result){
         const known=(profile.allergy_types||[]).map(id=>state.pets.find(pet=>pet.id===id)?.display_name||id);
         const hasAllergy=profile.has_allergy??profile.allergy;
         const allergyAnswer=hasAllergy?[
-            '有已知过敏',known.length?known.join('、'):'过敏对象未明确选择',
-            profile.allergy_uncertain?'不确定具体过敏原':'',profile.other_allergy,
-        ].filter(Boolean).join(' · '):'未报告动物相关过敏';
-        trace.append(table(['问卷输入','本次填写'],[
-            ['空间、每日时间',profile.space+' ㎡ · '+profile.time+' 小时'],
-            ['月预算、承诺期限','HK$ '+profile.budget+' · '+profile.years+' 年'],
-            ['居所许可、替代照护',(profile.pet_allowed?'允许':'未允许')+' · '+(profile.backup?'已安排':'待安排')],
-            ['活动、噪声、护理强度',[profile.activity,profile.noise,profile.grooming].join(' / ')],
-            ['经验、离家作息',profile.experience+' 级 · '+profile.alone_hours+' 小时 · 每月外宿 '+profile.away_nights+' 晚'],
-            ['环境、活饵',(profile.habitat_control?'可管理环境':'环境待准备')+' · '+(profile.live_insects?'可准备活饵':'未准备活饵')],
-            ['动物相关过敏',allergyAnswer],
+            'Known allergy',known.length?known.join(', '):'No specific animal selected',
+            profile.allergy_uncertain?'Allergen uncertain':'',profile.other_allergy,
+        ].filter(Boolean).join(' · '):'No animal-related allergy reported';
+        trace.append(table(['Quiz field','Your answers'],[
+            ['Space and daily care time',profile.space+' m² · '+profile.time+' h'],
+            ['Budget and care commitment','HK$ '+profile.budget+' · '+profile.years+' years'],
+            ['Housing permission and backup care',(profile.pet_allowed?'Allowed':'Restricted')+' · '+(profile.backup?'Arranged':'Not arranged')],
+            ['Activity, noise and grooming',[profile.activity,profile.noise,profile.grooming].join(' / ')],
+            ['Experience and time away',profile.experience+' / 2 · '+profile.alone_hours+' h · Nights away per month: '+profile.away_nights],
+            ['Habitat and live feeder insects',(profile.habitat_control?'Habitat care available':'Habitat care pending')+' · '+(profile.live_insects?'Live feeder insects available':'Live feeder insects unavailable')],
+            ['Animal-related allergy',allergyAnswer],
         ]));
     }
     if(result.eligible_count!==null){
-        trace.append(node('p','通过硬性筛选 '+result.eligible_count+' / '+result.real_pet_count+' 种真实宠物。'));
+        trace.append(node('p',result.eligible_count+' of '+result.real_pet_count+' real-pet profiles passed Hard Constraint Filtering.'));
     }
     if(result.triggered_rules.length){
         trace.append(list(result.triggered_rules.map(rule=>rule.rule_id+' · '+rule.label+' · '+
-            (rule.kind==='caution'?rule.reason:rule.pet_ids.length+' 种档案触发'))));
+            (rule.kind==='caution'?rule.reason:rule.pet_ids.length+' profiles triggered this rule'))));
     }
     trace.append(node('p',inferenceLabels[result.model_inference_status]),
         node('p',result.decision_reason));
     if(result.ranking.length){
-        trace.append(table(['排序','真实宠物','适配评分'],result.ranking.map(pet=>[pet.rank,pet.name,pet.score.toFixed(1)])));
+        trace.append(table(['Rank','Real pet','Compatibility score'],result.ranking.map(pet=>[pet.rank,pet.name,pet.score.toFixed(1)])));
     }
     if(result.virtual_companion){
-        trace.append(node('p',(result.fallback_triggered?'触发虚拟陪伴机制。':'可选虚拟陪伴。')+result.fallback_reason));
+        trace.append(node('p',(result.fallback_triggered?'The virtual companion fallback was triggered. ':'A virtual companion is available as an option. ')+result.fallback_reason));
     }
 }
 
 function renderResult(result){
     state.result=result;
     state.profile=result.input_summary;
-    const version=result.model_inference_status==='EXECUTED'?' · 模型版本 '+result.model_version:'';
+    const version=result.model_inference_status==='EXECUTED'?' · Model version '+result.model_version:'';
     const mode=result.model_inference_status==='EXECUTED'||result.model_inference_status==='RULES_ONLY'
-        ?modeText(result.mode)+version+'。':'';
+        ?modeText(result.mode)+version+'. ':'';
     $('#summary').textContent=mode+result.decision_reason;
     $('#export').disabled=!result.run_id;
     $('#scenario-open').disabled=!result.run_id;
@@ -461,16 +461,16 @@ function renderResult(result){
         if(catalogPet) card.append(petArt(catalogPet));
         const head=node('div',undefined,'card-head');
         const score=node('div',pet.score.toFixed(1),'score');
-        score.append(node('small','适配评分 / 100'));
+        score.append(node('small','Compatibility score / 100'));
         head.append(node('h3',(index+1)+'. '+pet.name),score);
         const bar=node('progress');
         bar.max=100;
         bar.value=pet.score;
-        bar.setAttribute('aria-label','适配评分');
+        bar.setAttribute('aria-label','Compatibility score');
         const details=node('details');
-        details.append(node('summary','照护提醒与评分对照'),
-            list([...pet.warnings,'规则基线评分：'+pet.rule_score.toFixed(1)+' / 100']));
-        card.append(head,bar,node('p','规则检查依据（非神经网络归因）','small'),list(pet.reasons),
+        details.append(node('summary','Care notes and score comparison'),
+            list([...pet.warnings,'Expert System baseline score: '+pet.rule_score.toFixed(1)+' / 100']));
+        card.append(head,bar,node('p','Evidence from rule checks','small'),list(pet.reasons),
             details,compareButton(pet),recommendationFeedback(result,pet));
         $('#cards').append(card);
     }
@@ -486,7 +486,7 @@ function renderResult(result){
 }
 function recommendationFeedback(result,pet){
     const row=node('div',undefined,'feedback');
-    const label=node('span',result.ratings?.[pet.id]?'评分已保存':'这个推荐适合你吗？');
+    const label=node('span',result.ratings?.[pet.id]?'Rating saved':'How well does this recommendation fit?');
     label.setAttribute('role','status');
     const buttons=[];
     for(let rating=1;rating<=5;rating++){
@@ -495,10 +495,10 @@ function recommendationFeedback(result,pet){
         const selected=result.ratings?.[pet.id]===rating;
         button.classList.toggle('selected',selected);
         button.setAttribute('aria-pressed',String(selected));
-        button.setAttribute('aria-label','评分 '+rating+' 分');
+        button.setAttribute('aria-label','Rate '+rating+' out of 5');
         button.onclick=async()=>{
             for(const option of buttons) option.disabled=true;
-            label.textContent='正在保存评分…';
+            label.textContent='Saving your rating…';
             try{
                 await api('/api/feedback',{run_id:result.run_id,pet_id:pet.id,rating});
                 result.ratings={...result.ratings,[pet.id]:rating};
@@ -506,7 +506,7 @@ function recommendationFeedback(result,pet){
                     option.classList.toggle('selected',option===button);
                     option.setAttribute('aria-pressed',String(option===button));
                 }
-                label.textContent='评分已保存';
+                label.textContent='Rating saved';
             }catch(error){
                 label.textContent=error.message;
             }finally{
@@ -536,25 +536,27 @@ quiz.addEventListener('submit',async event=>{
     const invalid=[...quiz.elements].find(field=>field.willValidate&&
         (field.validity.valueMissing||field.validity.badInput||field.valueAsNumber<0));
     if(invalid){
-        const label=invalid.closest('label')?.firstChild?.textContent.trim()||'问卷字段';
+        const label=invalid.closest('label')?.firstChild?.textContent.trim()||'Quiz field';
         invalid.setAttribute('aria-invalid','true');
         invalid.focus();
-        errorBox.textContent=label+'。'+(invalid.valueAsNumber<0?'请输入大于或等于 0 的数值。':invalid.validationMessage);
-        $('#summary').textContent='请检查问卷后重新提交。';
+        const message=invalid.validity.badInput ? 'Enter a number.' :
+            invalid.valueAsNumber<0 ? 'Enter a number of 0 or more.' : 'This field is required.';
+        errorBox.textContent=label+'. '+message;
+        $('#summary').textContent='Check your answers and submit the quiz again.';
         return;
     }
     const profile=readProfile();
     quizSubmit.disabled=true;
     quizSubmit.setAttribute('aria-busy','true');
-    quizSubmit.textContent='正在分析你的生活方式……';
-    $('#summary').textContent='正在检查问卷和宠物档案…';
+    quizSubmit.textContent='Analysing your lifestyle…';
+    $('#summary').textContent='Checking your answers against the care profiles…';
     const slow=setTimeout(()=>{
-        status.textContent='服务响应较慢，可能正在启动。请稍候…';
+        status.textContent='The service is taking a while and may be starting up. Please wait…';
     },5500);
     try{
         const result=await api('/api/recommend',profile);
         renderResult(result);
-        status.textContent='推荐结果已更新。';
+        status.textContent='Recommendations updated.';
         $('#match-results').scrollIntoView({block:'start',
             behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
     }catch(error){
@@ -565,7 +567,7 @@ quiz.addEventListener('submit',async event=>{
         }else{
             errorBox.textContent=error.message;
             if(error.decision) renderResult(error.decision);
-            else $('#summary').textContent='推荐暂时不可用，请稍后重新提交。';
+            else $('#summary').textContent='Recommendations are temporarily unavailable. Try submitting again shortly.';
         }
     }finally{
         clearTimeout(slow);
@@ -575,9 +577,9 @@ quiz.addEventListener('submit',async event=>{
     }
 });
 $('#scenario-open').onclick=()=>{if(!state.profile)return;$('#scenario-box').hidden=!$('#scenario-box').hidden;for(const k of ['budget','time','space'])$('#scenario-'+k).value=state.profile[k];};
-$('#scenario-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;try{const before={...state.profile},after={...before};for(const k of ['budget','time','space'])after[k]=Number($('#scenario-'+k).value);const r=await api('/api/scenario',{before,after});state.scenario=after;$('#scenario-result').replaceChildren(node('p',`合格候选：${r.before_count} → ${r.after_count} 类。未通过规则的候选不显示评分。`),table(['宠物','原评分','新评分','变化'],r.changes.map(p=>[p.name,p.before===null?'—':p.before.toFixed(1),p.after===null?'—':p.after.toFixed(1),p.delta===null?p.state:`${p.delta>0?'+':''}${p.delta.toFixed(1)} · ${p.state}`])));const excluded=r.changes.filter(p=>p.blocked.length);if(excluded.length){const d=node('details');d.append(node('summary','查看新条件下仍不合格的原因'),list(excluded.map(p=>p.name+'：'+p.blocked.join('；'))));$('#scenario-result').append(d);}$('#scenario-apply').hidden=false;}catch(err){$('#scenario-result').textContent=err.message;$('#scenario-apply').hidden=true;}finally{button.disabled=false;}};
-$('#scenario-apply').onclick=()=>{if(state.scenario){fillProfile(state.scenario);notify('已填入新条件。点击“探索我的宠物伙伴”生成并保存新推荐；当前卡片仍是原结果。');}};
-$('#export').onclick=()=>{if(!state.result)return;const r=state.result,u=state.profile;const lines=['# Pico 宠物推荐报告','',`记录编号：${r.run_id}`,`模型模式：${modeText(r.mode)}`,'','## 问卷资料',...Object.entries(u).map(([k,v])=>`- ${k}: ${v}`),'','## 推荐结果'];for(const [i,p] of r.recommendations.entries())lines.push(`### ${i+1}. ${p.name} · ${p.score}/100`,...p.reasons.map(t=>'- '+t),...p.warnings.map(t=>'- 提醒：'+t),'');if(!r.recommendations.length)lines.push('暂无满足规则的宠物。');lines.push('## 未通过规则',...r.excluded.map(p=>`- ${p.name}：${p.blocked.join('；')}`),'','## 说明',r.notice,'所有档案阈值为教学示例。模拟训练指标不代表真实推荐效果。');const blob=new Blob([lines.join('\n')],{type:'text/markdown;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download=`Pico_Report_${r.run_id.slice(0,8)}.md`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('已下载 Markdown 报告，可用文本编辑器打开。');};
+$('#scenario-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;try{const before={...state.profile},after={...before};for(const k of ['budget','time','space'])after[k]=Number($('#scenario-'+k).value);const r=await api('/api/scenario',{before,after});state.scenario=after;$('#scenario-result').replaceChildren(node('p',`Eligible profiles: ${r.before_count} → ${r.after_count}. Scores are shown for eligible pets.`),table(['Pet','Original score','New score','Change'],r.changes.map(p=>[p.name,p.before===null?'—':p.before.toFixed(1),p.after===null?'—':p.after.toFixed(1),p.delta===null?p.state_label:`${p.delta>0?'+':''}${p.delta.toFixed(1)} · ${p.state_label}`])));const excluded=r.changes.filter(p=>p.blocked.length);if(excluded.length){const d=node('details');d.append(node('summary','See which profiles the new conditions exclude and why'),list(excluded.map(p=>p.name+': '+p.blocked.join('; '))));$('#scenario-result').append(d);}$('#scenario-apply').hidden=false;}catch(err){$('#scenario-result').textContent=err.message;$('#scenario-apply').hidden=true;}finally{button.disabled=false;}};
+$('#scenario-apply').onclick=()=>{if(state.scenario){fillProfile(state.scenario);notify('The new values are in the quiz. Select See my recommendations to generate and save updated results. The current cards show the previous results.');}};
+$('#export').onclick=()=>{if(!state.result)return;const r=state.result,u=state.profile;const lines=['# Pico Pet Recommendation Report','',`Run ID: ${r.run_id}`,`Model mode: ${modeText(r.mode)}`,'','## Quiz responses',...Object.entries(u).map(([k,v])=>`- ${k}: ${v}`),'','## Recommendations'];for(const [i,p] of r.recommendations.entries())lines.push(`### ${i+1}. ${p.name} · ${p.score}/100`,...p.reasons.map(t=>'- '+t),...p.warnings.map(t=>'- Care note: '+t),'');if(!r.recommendations.length)lines.push('No pets passed the screening rules.');lines.push('## Filtered out',...r.excluded.map(p=>`- ${p.name}: ${p.blocked.join('; ')}`),'','## Notes',r.notice,'All care thresholds are teaching examples. The training metrics describe the synthetic data used in this demo.');const blob=new Blob([lines.join('\n')],{type:'text/markdown;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download=`Pico_Report_${r.run_id.slice(0,8)}.md`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('The Markdown report has downloaded. You can open it in a text editor.');};
 let defaults=null;
-for(const b of document.querySelectorAll('[data-preset]'))b.onclick=()=>{if(!defaults)return;let p={...defaults};if(b.dataset.preset==='busy')Object.assign(p,{time:.5,budget:500,years:3});if(b.dataset.preset==='active')Object.assign(p,{space:60,time:4,budget:2200,activity:5,noise:5,grooming:4,experience:1,years:18});fillProfile(p);notify('示例问卷已填入。请按真实情况修改后提交；当前结果尚未更新。');};
+for(const b of document.querySelectorAll('[data-preset]'))b.onclick=()=>{if(!defaults)return;let p={...defaults};if(b.dataset.preset==='busy')Object.assign(p,{time:.5,budget:500,years:3});if(b.dataset.preset==='active')Object.assign(p,{space:60,time:4,budget:2200,activity:5,noise:5,grooming:4,experience:1,years:18});fillProfile(p);notify('The demo answers are in the quiz. Update them to match your situation and submit to refresh the results.');};
 api('/api/info').then(j=>{defaults=j.defaults;state.pets=j.pets;populateAllergyOptions(j.allergy_options||[],j.allergy_notice);populateCostPets();$('#mode').textContent=modeText(j.mode);try{const saved=JSON.parse(localStorage.getItem('pawthfinder_compare')||'[]');if(Array.isArray(saved))state.selected=[...new Set(saved)].filter(id=>j.pets.some(p=>p.id===id)).slice(0,3);}catch{}$('#compare-count').textContent=state.selected.length;renderCatalog();renderCompare();renderHome();openLinkedProfile();}).catch(e=>{$('#mode').textContent=e.message;notify(e.message);});

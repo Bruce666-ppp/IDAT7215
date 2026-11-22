@@ -9,8 +9,8 @@ const communityPaperFields = $('#community-paper-fields');
 const communityDialog = $('#community-dialog');
 const communityQuery = $('#community-query');
 const communityMobileFilter = $('#community-mobile-filter');
-const communityCategoryNames = {life:'养宠日常',knowledge:'养宠知识',research:'论文分享'};
-const communityTime = new Intl.DateTimeFormat('zh-HK',{
+const communityCategoryNames = {life:'Pet Life',knowledge:'Pet Knowledge',research:'Research'};
+const communityTime = new Intl.DateTimeFormat('en-GB',{
     timeZone:'Asia/Hong_Kong',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,
 });
 let communityFilter = 'all';
@@ -32,7 +32,7 @@ function communityDate(value){
 }
 
 function communityAvatar(name){
-    const avatar=node('span',[...name][0]||'访','community-avatar');
+    const avatar=node('span',[...name][0]||'G','community-avatar');
     const sum=[...name].reduce((total,character)=>total+character.codePointAt(0),0);
     avatar.dataset.tone=String(sum%4);
     avatar.setAttribute('aria-hidden','true');
@@ -52,7 +52,7 @@ function showPaperFields(){
     communityForm.elements.namedItem('category').disabled=paper;
     communityForm.elements.namedItem('title').required=paper;
     communityBody.required=!paper;
-    communityBody.placeholder=paper ? '写下论文摘要或阅读心得…' : '分享你的养宠心得，或者问大家一个问题…';
+    communityBody.placeholder=paper ? 'Write a paper summary or share your reading notes…' : 'Share a pet care tip or ask the community a question…';
     $('#community-body-count').textContent=communityBody.value.length+' / 3000';
 }
 
@@ -93,7 +93,7 @@ function renderCommunityHot(items){
             selectCommunityFilter('all');
             searchCommunity(query);
         };
-        row.append(button,node('small',item.topic?item.posts+' 篇':item.interactions+' 次互动'));
+        row.append(button,node('small',item.topic?item.posts+(item.posts === 1 ? ' post' : ' posts'):item.interactions+(item.interactions === 1 ? ' interaction' : ' interactions')));
         list.append(row);
     }
 }
@@ -119,7 +119,7 @@ async function loadCommunity(append=false){
     if(communitySearch) params.set('q',communitySearch);
     communityMore.disabled=true;
     if(!append) communityMore.hidden=true;
-    setCommunityStatus(status,'正在读取动态…');
+    setCommunityStatus(status,'Loading posts…');
     try{
         const data=await (pagesPreview?previewCommunityPosts():api('/api/community/posts?'+params));
         if(call!==communityRequest) return;
@@ -134,11 +134,11 @@ async function loadCommunity(append=false){
         }
         if(!append&&!data.items.length){
             const empty=node('div',undefined,'community-card community-empty');
-            let message='这个分类还没有动态。';
-            if(communitySearch) message='没有找到符合搜索词的动态。';
-            else if(communityFilter==='mine') message='你还没有发布动态。';
-            else if(communityFilter==='saved') message='收藏的帖子会出现在这里。';
-            else if(communityFilter==='all') message='还没有社区动态，来发第一帖吧。';
+            let message='No posts in this category yet.';
+            if(communitySearch) message='No posts match your search.';
+            else if(communityFilter==='mine') message='You haven’t published any posts yet.';
+            else if(communityFilter==='saved') message='Your saved posts will appear here.';
+            else if(communityFilter==='all') message='The feed is empty. Be the first to post.';
             empty.append(node('p',message));
             communityFeed.append(empty);
         }
@@ -189,7 +189,7 @@ communityForm.addEventListener('submit',async event=>{
     const cancel=$('#community-cancel');
     publish.disabled=true;
     cancel.disabled=true;
-    setCommunityStatus(status,'正在发布…');
+    setCommunityStatus(status,'Publishing…');
     try{
         const data=await requestApi('/api/community/posts',{method:'POST',body:new FormData(communityForm)},60000);
         communityForm.reset();
@@ -202,7 +202,7 @@ communityForm.addEventListener('submit',async event=>{
         await loadCommunity();
         const notice=$('#community-publish-notice');
         clearTimeout(communityNoticeTimer);
-        setCommunityStatus(notice,'发布成功，已显示在最新动态。');
+        setCommunityStatus(notice,'Your post is live in the latest feed.');
         notice.scrollIntoView({block:'nearest',behavior:'smooth'});
         communityNoticeTimer=setTimeout(()=>setCommunityStatus(notice,''),3500);
     }catch(error){
@@ -239,14 +239,14 @@ function communityPost(post){
     if(post.paper_url||post.attachment_name){
         const links=node('div',undefined,'community-paper-links');
         if(post.paper_url){
-            const link=node('a','打开论文链接');
+            const link=node('a','Open paper link');
             link.href=post.paper_url;
             link.target='_blank';
             link.rel='noopener noreferrer';
             links.append(link);
         }
         if(post.attachment_name){
-            const file=node('a','下载 PDF · '+post.attachment_name);
+            const file=node('a','Download PDF · '+post.attachment_name);
             file.href=apiUrl(root+'/paper');
             links.append(file);
         }
@@ -255,12 +255,12 @@ function communityPost(post){
     if(pagesPreview) return article;
     const tools=node('div',undefined,'community-post-tools');
     const like=communityButton('','community-reaction');
-    const comment=communityButton('评论 '+post.comments,'community-reaction');
+    const comment=communityButton('Comments '+post.comments,'community-reaction');
     const save=communityButton('','community-reaction community-bookmark');
     const status=node('p','','community-status');
     status.setAttribute('role','status');
     const redrawLike=()=>{
-        like.textContent=(post.liked?'♥ 已赞 ':'♡ 点赞 ')+post.likes;
+        like.textContent=(post.liked?'♥ Liked ':'♡ Like ')+post.likes;
         like.setAttribute('aria-pressed',String(post.liked));
     };
     redrawLike();
@@ -278,7 +278,7 @@ function communityPost(post){
         }
     };
     const redrawSave=()=>{
-        save.textContent=post.saved?'★ 已收藏':'☆ 收藏';
+        save.textContent=post.saved?'★ Saved':'☆ Save';
         save.setAttribute('aria-pressed',String(post.saved));
     };
     redrawSave();
@@ -308,7 +308,7 @@ function communityComments(post,root,toggle){
     toggle.setAttribute('aria-expanded','false');
     toggle.setAttribute('aria-controls',panel.id);
     const list=node('ol',undefined,'community-comment-list');
-    const more=communityButton('更早的评论','community-text-button');
+    const more=communityButton('Earlier comments','community-text-button');
     more.hidden=true;
     const status=node('p','','community-status');
     status.setAttribute('role','status');
@@ -318,9 +318,9 @@ function communityComments(post,root,toggle){
     input.rows=2;
     input.maxLength=500;
     input.required=true;
-    input.placeholder='写条评论…';
-    input.setAttribute('aria-label','评论内容');
-    const reply=node('button','发送评论');
+    input.placeholder='Write a comment…';
+    input.setAttribute('aria-label','Comment text');
+    const reply=node('button','Post comment');
     reply.type='submit';
     form.append(input,reply);
     panel.append(more,list,status,form);
@@ -331,7 +331,7 @@ function communityComments(post,root,toggle){
         const call=++requestId;
         more.disabled=true;
         const suffix=older&&cursor ? '?before='+encodeURIComponent(cursor) : '';
-        setCommunityStatus(status,'正在读取评论…');
+        setCommunityStatus(status,'Loading comments…');
         try{
             const data=await api(root+'/comments'+suffix);
             if(call!==requestId) return;
@@ -347,8 +347,8 @@ function communityComments(post,root,toggle){
             else list.append(...entries);
             cursor=data.next_before;
             more.hidden=!cursor;
-            toggle.textContent='评论 '+data.count;
-            setCommunityStatus(status,data.count?'':'暂无评论。');
+            toggle.textContent='Comments '+data.count;
+            setCommunityStatus(status,data.count?'':'No comments yet.');
         }catch(error){
             if(call===requestId) setCommunityStatus(status,error.message,true);
         }finally{

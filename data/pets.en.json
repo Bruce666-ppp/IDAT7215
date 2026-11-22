@@ -1,0 +1,56 @@
+{
+  "cat": {
+    "name": "Adult domestic cat",
+    "display_name": "Cat",
+    "tagline": "Save a spot by the window",
+    "note": "Cats need litter, places to scratch and an enriching environment. Individual personalities vary widely."
+  },
+  "small_dog": {
+    "name": "Adult small dog",
+    "display_name": "Dog",
+    "tagline": "Let's go for a walk",
+    "note": "Dogs need daily outings, training and company. Small dogs can still need a lot of care."
+  },
+  "rabbit": {
+    "name": "Domestic rabbit",
+    "display_name": "Rabbit",
+    "tagline": "Quiet, with a mind of its own",
+    "note": "Rabbits need a safe exercise area, a suitable diet and a vet experienced with rabbits. They require substantial care."
+  },
+  "hamster": {
+    "name": "Hamster",
+    "display_name": "Hamster",
+    "tagline": "A little night-time explorer",
+    "note": "Hamsters need plenty of continuous space to explore and suitable bedding. They are active at night. Appearance alone gives little information about their care needs."
+  },
+  "hedgehog": {
+    "name": "African pygmy hedgehog",
+    "display_name": "Hedgehog",
+    "tagline": "A spiky neighbour after dark",
+    "note": "Hedgehogs are more active at night and need a suitable temperature, places to hide and specialised care."
+  },
+  "leopard_gecko": {
+    "name": "Leopard gecko",
+    "display_name": "Leopard gecko",
+    "tagline": "A spotted coat and a low stroll",
+    "note": "Leopard geckos need an enclosure with a temperature gradient and hiding places, plus a variety of live feeder insects."
+  },
+  "budgie": {
+    "name": "Budgerigar group",
+    "display_name": "Budgerigar",
+    "tagline": "A little more sound in your day",
+    "note": "Budgerigars need company from their own species, space to fly and a clean environment. Feathers and dust may also cause discomfort."
+  },
+  "aquarium": {
+    "name": "Freshwater aquarium",
+    "display_name": "Ornamental fish",
+    "tagline": "Bring an underwater view home",
+    "note": "A freshwater aquarium needs water quality management, a cycled tank and a suitable tank size. Assess the species, number of fish and their lifespans separately."
+  },
+  "nailong": {
+    "name": "Naylong",
+    "display_name": "Naylong",
+    "tagline": "A little more joy today",
+    "note": "A round, yellow companion from a world of make-believe. You can enjoy spending time with this fictional character without planning a pet care budget."
+  }
+}

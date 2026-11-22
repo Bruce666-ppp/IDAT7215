@@ -108,6 +108,7 @@ def test_scenario_is_stateless_and_respects_rules(tmp_path):
     data=a.post('/api/scenario',json=dict(before=dict(DEFAULT,budget=0),after=DEFAULT)).get_json()
     assert data['before_count']==0 and data['after_count']>0
     assert any(p['state']=='新增合格' for p in data['changes'])
+    assert any(p['state_label']=='Newly eligible' for p in data['changes'])
     assert a.get('/api/history').get_json()['items']==[]
     none=a.post('/api/scenario',json=dict(before=DEFAULT,after=dict(DEFAULT,pet_allowed=False))).get_json()
     assert none['after_count']==0
@@ -154,7 +155,7 @@ def test_split_rejects_leakage(tmp_path):
     rows[1]['split']='test' if rows[0]['split']!='test' else 'train'
     with f.open('w',newline='') as handle:
         writer=csv.DictWriter(handle,fieldnames=rows[0].keys());writer.writeheader();writer.writerows(rows)
-    with pytest.raises(ValueError,match='同一用户跨集合'): split_csv(f,read_real(f),42)
+    with pytest.raises(ValueError,match='A user appears in multiple splits'): split_csv(f,read_real(f),42)
 
 
 def test_nine_partners_with_fiction_excluded(tmp_path):

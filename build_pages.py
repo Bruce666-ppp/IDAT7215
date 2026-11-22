@@ -1,4 +1,4 @@
-"""Export the bundled PawthFinder demo for GitHub Pages."""
+"""Export the bundled Pico demo for GitHub Pages."""
 import argparse
 import json
 import os
@@ -54,7 +54,7 @@ def build(output, app_url=''):
             feed = json.loads(files["community/posts.json"])
             if feed["next_before"] or any(not post["demo"] for post in feed["items"]):
                 raise RuntimeError("The Pages snapshot must contain only the bundled demo posts.")
-            feed["author"] = "社区演示"
+            feed["author"] = "Community demo"
             files["community/posts.json"] = json.dumps(feed, ensure_ascii=False).encode("utf-8")
     output.mkdir(parents=True, exist_ok=True)
     copytree(BASE / "static", output / "static")

@@ -12,7 +12,7 @@ from tempfile import TemporaryDirectory
 from threading import RLock, Thread
 from uuid import uuid4
 
-from core import BASE, USER_KEYS
+from core import BASE, PET_TEXT, USER_KEYS
 from engine import Recommender
 from train import prepare_csv, synthetic
 
@@ -50,7 +50,7 @@ class TrainingLab:
         candidate = Recommender(path / 'model.pt')
         if (candidate.model is None or candidate.metrics is None or
                 candidate.dataset_sha256 != job['dataset_sha256']):
-            raise ValueError('训练产物校验失败')
+            raise ValueError('The training output could not be verified.')
         candidate.version = job['id'][:12]
         candidate.dataset_name = job['dataset_name']
         return candidate
@@ -72,7 +72,7 @@ class TrainingLab:
             sample = []
             for part, group in groups.items():
                 for user, _, pet, score in group[:4]:
-                    sample.append({'user_id': user, 'pet': pet['display_name'], 'score': score, 'split': part})
+                    sample.append({'user_id': user, 'pet': PET_TEXT[pet['id']]['display_name'], 'score': score, 'split': part})
             job = {
                 'id': job_id, 'dataset_name': name, 'dataset_sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
                 'rows': len(rows), 'users': len({row[0] for row in rows}),
@@ -107,14 +107,14 @@ class TrainingLab:
         with self.lock:
             job = self.get(owner, job_id)
             if job is None:
-                raise LookupError('本会话没有这次数据预览')
+                raise LookupError('This data preview could not be found in your session.')
             if job['status'] in ('running', 'done'):
                 return job
             if any(candidate['status'] == 'running' for candidate in self.jobs.values()):
-                raise RuntimeError('当前有训练在进行，请在完成后再启动')
+                raise RuntimeError('A training run is already in progress. Wait for it to finish before starting another.')
             path = self.root / job_id / 'ratings.csv'
             if hashlib.sha256(path.read_bytes()).hexdigest() != job['dataset_sha256']:
-                raise ValueError('CSV 已变化，请重新上传并预览')
+                raise ValueError('The CSV has changed. Upload and preview it again.')
             self.jobs[job_id].update(status='running', epoch=0, error=None)
             Thread(target=self._train, args=(job_id,), daemon=True).start()
             return self.get(owner, job_id)
@@ -146,4 +146,4 @@ class TrainingLab:
                 job.update(status='done', model_version=candidate.version)
         except (OSError, ValueError, RuntimeError):
             with self.lock:
-                self.jobs[job_id].update(status='failed', error='训练未完成，当前模型仍可使用。请检查数据后重试。')
+                self.jobs[job_id].update(status='failed', error='Training did not finish. The active model is still available. Check your data and try again.')

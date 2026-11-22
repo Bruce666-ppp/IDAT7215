@@ -82,7 +82,7 @@ def test_feed_search_popularity_and_saved_are_scoped(tmp_path):
     assert items(viewer, 'knowledge', '新手交流') == [earlier]
     assert items(viewer, 'life', '新手交流') == []
     assert items(viewer, 'all', '时间安排') == [earlier]
-    assert items(viewer, 'paper', '阅读卡片示例') == ['demo-paper']
+    assert items(viewer, 'paper', 'Reading Card Demo') == ['demo-paper']
     assert viewer.get('/api/community/posts').get_json()['hot'][0]['topic'] == '新手交流'
 
     save_url = f'/api/community/posts/{earlier}/save'
@@ -109,3 +109,22 @@ def test_existing_posts_are_migrated_without_demo_insertion(tmp_path):
     posts = app.test_client().get('/api/community/posts').get_json()['items']
     assert len(posts) == 1
     assert (posts[0]['body'], posts[0]['category'], posts[0]['demo']) == ('保留的正文', 'research', 0)
+
+
+def test_existing_demo_copy_is_localised_and_user_posts_are_preserved(tmp_path):
+    database=tmp_path/'community.sqlite3'
+    engine=Recommender(tmp_path/'missing.pt')
+    writer=create_app(database,engine).test_client()
+    post=writer.post('/api/community/posts',data={'author':'小林','body':'原有帖子'})
+    assert post.status_code==201
+    with closing(sqlite3.connect(database)) as con, con:
+        con.execute("UPDATE community_posts SET title=?, topic=? WHERE id='demo-paper'",
+                    ('阅读卡片示例','阅读笔记'))
+
+    reader=create_app(database,engine).test_client()
+    feed=reader.get('/api/community/posts').get_json()
+    items={post['id']:post for post in feed['items']}
+    personal=items[post.get_json()['id']]
+    assert (personal['author'],personal['body'])==('小林','原有帖子')
+    assert items['demo-paper']['title'].startswith('Reading Card Demo')
+    assert 'Reading Notes' in {item['topic'] for item in feed['hot']}

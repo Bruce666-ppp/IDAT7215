@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 import numpy as np
 import torch
 from torch import nn
-from core import BASE,PETS,REAL_PETS,SCHEMA,CATALOG_HASH,FLAGS,OPTIONAL_PROFILE_FIELDS,USER_KEYS,features,validate,rule_score,assess
+from core import BASE,PETS,REAL_PETS,SCHEMA,CATALOG_HASH,FLAGS,MODEL_EVALUATION_NOTE,OPTIONAL_PROFILE_FIELDS,USER_KEYS,features,validate,rule_score,assess
 from network import PetMLP
 
 def synthetic(n,seed):
@@ -36,7 +36,7 @@ def read_profile(row):
             continue
         if key in FLAGS:
             if value not in ('true', 'false', '1', '0'):
-                raise ValueError(f'{key} 需要 true/false 或 1/0')
+                raise ValueError(f'{key} must be true/false or 1/0.')
             profile[key] = value in ('true', '1')
         else:
             profile[key] = float(value)
@@ -50,21 +50,21 @@ def read_real(path, *, max_rows=None):
         fields = reader.fieldnames or []
         required = {'user_id', 'pet_id', 'score'}
         if not required.issubset(fields) or len(set(fields)) != len(fields):
-            raise ValueError('CSV 需要唯一的列名，至少包含 user_id、pet_id、score 和问卷资料')
+            raise ValueError('Use unique CSV column names. Include user_id, pet_id, score and the quiz data.')
         if 'profile' not in fields and not (set(USER_KEYS) - OPTIONAL_PROFILE_FIELDS).issubset(fields):
-            raise ValueError('CSV 缺少 profile 或必填问卷列，请参考评分样表')
+            raise ValueError('Add a profile column or the required quiz columns. See the sample ratings CSV.')
         for line,r in enumerate(reader,2):
             try:
                 if max_rows is not None and line-1 > max_rows:
-                    raise ValueError(f'最多接收 {max_rows:,} 条评分')
+                    raise ValueError(f'The upload can contain up to {max_rows:,} ratings.')
                 if None in r or any(value is None for value in r.values()):
-                    raise ValueError('列数与表头不一致')
+                    raise ValueError('The number of columns does not match the header.')
                 uid=r['user_id'].strip(); u=read_profile(r); p=known[r['pet_id'].strip()]
                 score=float(r['score']); fingerprint=json.dumps(u,sort_keys=True)
                 if not uid or len(uid)>128 or not np.isfinite(score) or not 0<=score<=1:
-                    raise ValueError('user_id 长度须为 1–128，score 须在 0–1 之间')
+                    raise ValueError('user_id must be 1–128 characters and score must be between 0 and 1.')
                 if p.get('fictional') and score != 0:
-                    raise ValueError('奶龙是展示角色，如提供其评分，score 须为 0')
+                    raise ValueError('Naylong is a fictional companion. If you include a Naylong rating, its score must be 0.')
                 if uid in profiles and profiles[uid]!=fingerprint: raise ValueError('profile changed within user')
                 if (uid,p['id']) in pairs: raise ValueError('duplicate user-pet pair')
                 profiles[uid]=fingerprint; pairs.add((uid,p['id']))
@@ -72,7 +72,7 @@ def read_real(path, *, max_rows=None):
                     continue
                 rows.append((uid,u,p,score))
             except (KeyError,ValueError,TypeError) as e:
-                raise ValueError(f'CSV 第 {line} 行无效：{e}') from e
+                raise ValueError(f'Invalid data on CSV row {line}: {e}') from e
     return rows
 
 def split_csv(path,rows,seed):
@@ -84,20 +84,20 @@ def split_csv(path,rows,seed):
             if row.get('source'): sources.add(row['source'].strip()[:100])
             if has_split:
                 uid=row['user_id'].strip();part=row['split']
-                if part not in ('train','validation','test'): raise ValueError('split 必须为 train/validation/test')
-                if uid in assignment and assignment[uid]!=part: raise ValueError('同一用户跨集合，存在数据泄漏')
+                if part not in ('train','validation','test'): raise ValueError('split must be train, validation or test.')
+                if uid in assignment and assignment[uid]!=part: raise ValueError('A user appears in multiple splits, which causes data leakage.')
                 assignment[uid]=part
     ids=sorted({r[0] for r in rows})
     if not has_split:
         random.Random(seed).shuffle(ids);n=len(ids)
         assignment={uid:'train' if i<int(.7*n) else 'validation' if i<int(.85*n) else 'test' for i,uid in enumerate(ids)}
     groups={part:[row for row in rows if assignment[row[0]]==part] for part in ['train','validation','test']}
-    if any(not group for group in groups.values()): raise ValueError('训练、验证、测试集合都必须非空；请传入 ratings.csv 全量文件')
+    if any(not group for group in groups.values()): raise ValueError('Training, validation and test splits must all contain data. Use the complete ratings.csv file.')
     # Identical profile copies across users also inflate held-out results.
     fingerprints={}
     for uid,u,p,y in rows:
         key=json.dumps(u,sort_keys=True)
-        if key in fingerprints and fingerprints[key]!=assignment[uid]: raise ValueError('相同用户资料出现在不同集合，请先去重')
+        if key in fingerprints and fingerprints[key]!=assignment[uid]: raise ValueError('The same user profile appears in more than one split. Remove duplicates first.')
         fingerprints[key]=assignment[uid]
     return groups,sources,has_split
 
@@ -105,9 +105,9 @@ def split_csv(path,rows,seed):
 def prepare_csv(path, seed=42, *, max_rows=None):
     rows = read_real(path, max_rows=max_rows)
     if not rows:
-        raise ValueError('需要至少一种真实宠物的评分')
+        raise ValueError('Include ratings for at least one real pet.')
     if len({row[0] for row in rows}) < 20:
-        raise ValueError('至少需要 20 位不同用户用于按用户划分')
+        raise ValueError('At least 20 distinct users are required for a split by user.')
     return rows, *split_csv(path, rows, seed)
 
 def tensors(rows):
@@ -129,8 +129,8 @@ def ndcg(rows,scores):
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--csv',type=str,help='评分 CSV；不提供时使用内置模拟数据')
-    parser.add_argument('--data-source',choices=['synthetic','real','upload'],default='synthetic',help='CSV 来源：内置合成、真实或本地上传')
+    parser.add_argument('--csv',type=str,help='Ratings CSV. Uses the bundled synthetic data by default.')
+    parser.add_argument('--data-source',choices=['synthetic','real','upload'],default='synthetic',help='CSV source: bundled synthetic data, real ratings or a local upload')
     parser.add_argument('--users',type=int,default=1800)
     parser.add_argument('--epochs',type=int,default=80)
     parser.add_argument('--seed',type=int,default=42)
@@ -144,10 +144,10 @@ def main():
     else:
         rows=synthetic(a.users,a.seed)
     ids=sorted({r[0] for r in rows})
-    if len(ids)<20: parser.error('至少需要 20 位不同用户用于按用户划分')
+    if len(ids)<20: parser.error('At least 20 distinct users are required for a split by user.')
     if a.csv:
         if a.data_source=='real' and any(x.startswith('synthetic') for x in sources):
-            parser.error('合成数据不能标注为真实用户数据')
+            parser.error('Label synthetic data as synthetic.')
         tr,va,te=groups['train'],groups['validation'],groups['test']
     else:
         random.Random(a.seed).shuffle(ids);n=len(ids)
@@ -185,7 +185,7 @@ def main():
        'per_pet_rows':[{'id':p['id'],'name':p['display_name'],'rows':sum(c[p['id']] for c in per_pet)} for p in REAL_PETS],
        'prediction_sample':[{'label':round(float(labels[i]),4),'prediction':round(float(pred[i]),4)} for i in scatter_indices],
        'train_rows':len(tr),'val_rows':len(va),
-       'disclaimer':'评估反映本次数据及其标签，不能代表真实照护结果。',
+       'disclaimer':MODEL_EVALUATION_NOTE,
        'seed':a.seed,'train_users':len(train_ids),'val_users':len(val_ids),'test_users':len(test_ids),
        'test_rows':len(te),'model_mse':float(np.mean((pred-labels)**2)),
        'rule_mse':float(np.mean((baseline-labels)**2)),

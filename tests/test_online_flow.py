@@ -1,3 +1,6 @@
+import json
+import re
+
 import pytest
 
 from app import create_app
@@ -39,10 +42,10 @@ def test_model_profiles_feedback_and_restart(tmp_path, monkeypatch):
     assert len(high['recommendations'])>len(normal['recommendations'])>0
     assert len({result['run_id'] for result in results})==len(results)
     assert not low['recommendations'] and not forbidden['recommendations']
-    assert any('不允许' in reason or '未允许' in reason
-               for pet in forbidden['excluded'] for reason in pet['blocked'])
-    assert any(pet['id']=='cat' and any('过敏' in reason for reason in pet['blocked']) for pet in allergy['excluded'])
-    assert any('4 晚不在家' in reason for pet in allergy['recommendations'] for reason in pet['reasons'])
+    assert all(any(check['rule_id']=='H01' for check in pet['exclusion_reasons'])
+               for pet in forbidden['excluded'])
+    assert any(check['rule_id']=='A02' for check in allergy['exclusion_reasons']['cat'])
+    assert any('4 nights away' in reason for pet in allergy['recommendations'] for reason in pet['reasons'])
     top=normal['recommendations'][0]
     assert top['reasons'] and 0<=top['score']<=100
     rating=dict(run_id=normal['run_id'],pet_id=top['id'],rating=5)
@@ -71,7 +74,7 @@ def test_hosted_api_cookies_health_and_mutations(tmp_path,monkeypatch):
     app=create_app(tmp_path/'app.sqlite3',Recommender(tmp_path/'missing.pt'))
     client=app.test_client()
     index=client.get('/',base_url=origin)
-    assert '服务休眠或重启后会清空问卷、评分和社区记录' in index.get_data(as_text=True)
+    assert 'If the service sleeps or restarts, quiz responses, ratings and community records will be cleared.' in index.get_data(as_text=True)
     cookie=index.headers['Set-Cookie']
     assert all(attribute in cookie for attribute in ('Secure','HttpOnly','SameSite=Lax'))
     health=client.get('/api/health',base_url=origin,headers={'Origin':pages_origin})
@@ -98,6 +101,7 @@ def test_pages_entry_configuration(tmp_path):
     app_url='https://pawthfinder.example'
     build(tmp_path/'site',app_url)
     index=(tmp_path/'site/index.html').read_text(encoding='utf-8')
+    assert 'lang="en-GB"' in index
     assert 'data-pages-preview' in index
     assert 'href="'+app_url+'/#match"' in index
     assert '<button id="submit" type="submit">' in index
@@ -108,3 +112,28 @@ def test_pages_entry_configuration(tmp_path):
                 'https://user@pawthfinder.example','https://bruce666-ppp.github.io/'):
         with pytest.raises(ValueError):
             published_app_url(url)
+
+
+def test_english_interface_and_generated_recommendation_copy(tmp_path):
+    client=create_app(tmp_path/'english.sqlite3').test_client()
+    html=client.get('/').get_data(as_text=True)
+    assert '<html lang="en-GB">' in html
+    assert 'Your Pet Lifestyle Guide' in html and 'Find My Companion' in html
+    han=re.compile(r'[\u3400-\u9fff]')
+    assert not han.search(html)
+
+    info=client.get('/api/info').get_json()
+    assert next(p for p in info['pets'] if p['id']=='cat')['display_name']=='Cat'
+    assert next(p for p in info['pets'] if p['id']=='nailong')['name']=='Naylong'
+    allergy=client.post('/api/recommend',json=DEFAULT|{'has_allergy':True,'allergy_types':['cat']}).get_json()
+    assert allergy['exclusion_reasons']['cat'][0]['rule_id']=='A01'
+    assert 'allergy' in allergy['exclusion_reasons']['cat'][0]['reason'].lower()
+    fallback=client.post('/api/recommend',json=DEFAULT|{'pet_allowed':False}).get_json()
+    assert fallback['fallback_triggered'] and fallback['virtual_companion']['name']=='Naylong'
+    invalid=client.post('/api/recommend',json={}).get_json()
+    assert invalid['error'].startswith('Complete the following fields')
+    metrics=client.get('/api/model').get_json()['metrics']
+    assert metrics['disclaimer']=='These evaluation results describe this dataset and its labels only.'
+    assert all(not han.search(row['name']) for row in metrics['per_pet_rows'])
+    for payload in (info,allergy,fallback,invalid):
+        assert not han.search(json.dumps(payload,ensure_ascii=False))

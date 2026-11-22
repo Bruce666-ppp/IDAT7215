@@ -9,7 +9,7 @@ const trainingUi={
     progress:$('#training-progress'),
     status:$('#training-status'),
 };
-const splitNames={train:'训练集',validation:'验证集',test:'测试集'};
+const splitNames={train:'Training set',validation:'Validation set',test:'Test set'};
 let trainingJob=null;
 let pollTimer;
 let restoreAttempted=false;
@@ -29,25 +29,25 @@ function displayJob(job){
         trainingUi.preview.replaceChildren();
         return;
     }
-    const fingerprint=node('p','数据指纹 '+job.dataset_sha256.slice(0,16)+'…','small');
-    const summary=node('p',job.dataset_name+' · '+job.users.toLocaleString()+' 位用户 · '
-        +job.rows.toLocaleString()+' 条配对 · '+job.pet_types+' 类伙伴');
-    const sources=job.sources.length ? '文件标注：'+job.sources.join('、') : '文件未标注数据来源';
+    const fingerprint=node('p','Dataset fingerprint '+job.dataset_sha256.slice(0,16)+'…','small');
+    const summary=node('p',job.dataset_name+' · '+job.users.toLocaleString('en-GB')+' users · '
+        +job.rows.toLocaleString('en-GB')+' pairs · '+job.pet_types+' pet types');
+    const sources=job.sources.length ? 'File labels: '+job.sources.join(', ') : 'No data source specified in the file.';
     const split=Object.entries(job.split).map(([part,counts])=>[splitNames[part],counts.users,counts.rows]);
     const sample=job.sample.map(row=>[row.user_id,row.pet,row.score,splitNames[row.split]]);
-    trainingUi.preview.replaceChildren(node('h4','数据预览'),summary,fingerprint,node('p',sources,'small'),
-        table(['数据划分','用户数','配对数'],split),node('h4','部分评分记录'),
-        table(['匿名用户','伙伴','评分','集合'],sample));
+    trainingUi.preview.replaceChildren(node('h4','Data preview'),summary,fingerprint,node('p',sources,'small'),
+        table(['Data split','Users','Pairs'],split),node('h4','Sample rating records'),
+        table(['Anonymous user','Companion','Rating','Split'],sample));
     trainingUi.progress.max=job.epochs;
     trainingUi.progress.value=job.epoch;
     if(running){
-        trainingUi.status.textContent='正在训练 · 第 '+job.epoch+' / '+job.epochs+' 轮';
+        trainingUi.status.textContent='Training · Epoch '+job.epoch+' / '+job.epochs;
     }else if(job.status==='done'){
-        trainingUi.status.textContent='训练完成，已启用模型 '+job.model_version+'。提交问卷即可使用新模型评分。';
+        trainingUi.status.textContent='Training complete. Model '+job.model_version+' is now active. Submit the quiz to use the new model.';
     }else if(job.status==='failed'){
         trainingUi.status.textContent=job.error;
     }else{
-        trainingUi.status.textContent='已验证数据，等待你开始训练。';
+        trainingUi.status.textContent='Data verified. Select Start Training when ready.';
     }
 }
 
@@ -61,7 +61,7 @@ async function pollTraining(jobId){
             await loadModel();
         }
     }catch(error){
-        trainingUi.status.textContent='暂时读取不到训练状态，正在重试。';
+        trainingUi.status.textContent='Training status is temporarily unavailable. Retrying…';
         pollTimer=setTimeout(()=>pollTraining(jobId),3500);
     }
 }
@@ -78,7 +78,7 @@ trainingUi.form.addEventListener('submit',async event=>{
     displayJob(null);
     trainingUi.previewButton.disabled=true;
     trainingUi.file.disabled=true;
-    trainingUi.status.textContent='正在验证 CSV 和用户划分…';
+    trainingUi.status.textContent='Checking the CSV and user-level splits…';
     try{
         const result=await requestApi('/api/training/preview',{method:'POST',body:data},120000);
         displayJob(result);
@@ -129,7 +129,7 @@ function axes(draw,left,bottom,right,top){
 }
 
 function lossGraph(history){
-    const {svg,draw}=chart('训练和验证 BCE 损失曲线');
+    const {svg,draw}=chart('Training and validation BCE loss curves');
     const ceiling=Math.max(...history.flatMap(row=>[row.train_bce,row.val_bce]),0.01)*1.05;
     axes(draw,56,190,535,16);
     for(let i=0;i<=4;i++){
@@ -141,8 +141,8 @@ function lossGraph(history){
         const points=history.map((row,index)=>(56+index/Math.max(1,history.length-1)*479)+','+(190-row[key]/ceiling*174));
         draw('polyline',{points:points.join(' '),class:style});
     }
-    draw('text',{x:56,y:216},'第 1 轮');
-    draw('text',{x:535,y:216,'text-anchor':'end'},'第 '+history.at(-1).epoch+' 轮');
+    draw('text',{x:56,y:216},'Epoch 1');
+    draw('text',{x:535,y:216,'text-anchor':'end'},'Epoch '+history.at(-1).epoch);
     return svg;
 }
 
@@ -155,13 +155,13 @@ function rowsGraph(rows,label){
         const width=value/maximum*300;
         draw('text',{x:135,y:y+12,'text-anchor':'end'},name);
         draw('rect',{x:147,y,width,height:15,rx:2,class:'sample-bar'});
-        draw('text',{x:157+width,y:y+12},value.toLocaleString());
+        draw('text',{x:157+width,y:y+12},value.toLocaleString('en-GB'));
     });
     return svg;
 }
 
 function predictionGraph(points){
-    const {svg,draw}=chart('测试标签与模型预测分数对照');
+    const {svg,draw}=chart('Predicted scores and test labels');
     const x=value=>70+value*420;
     const y=value=>184-value*155;
     axes(draw,x(0),y(0),x(1),y(1));
@@ -173,8 +173,8 @@ function predictionGraph(points){
         draw('text',{x:x(value),y:202,'text-anchor':'middle'},value);
         draw('text',{x:58,y:y(value)+4,'text-anchor':'end'},value);
     }
-    draw('text',{x:70,y:17},'模型预测');
-    draw('text',{x:280,y:226,'text-anchor':'middle'},'测试标签');
+    draw('text',{x:70,y:17},'Predicted score');
+    draw('text',{x:280,y:226,'text-anchor':'middle'},'Test label');
     return svg;
 }
 
@@ -201,53 +201,53 @@ async function restoreTraining(){
 
 async function loadModel(){
     const box=$('#model-content');
-    box.textContent='正在读取启用模型…';
+    box.textContent='Loading the active model…';
     void restoreTraining();
     try{
         const response=await api('/api/model');
         $('#mode').textContent=modeText(response.mode);
         box.replaceChildren();
         if(!response.metrics){
-            box.append(node('p',$('#training-upload').hidden?'当前没有配套训练记录。':'当前没有配套训练记录。可上传评分 CSV 并训练新模型。'));
+            box.append(node('p',$('#training-upload').hidden?'No training records are available.':'No training records are available. Upload a ratings CSV to train a new model.'));
             return;
         }
         const m=response.metrics;
-        const trainedAt=m.trained_at ? new Date(m.trained_at).toLocaleString('zh-CN',{timeZone:'Asia/Hong_Kong',hour12:false})+'（香港时间）' : '—';
-        const facts=table(['训练记录','本次模型'],[
-            ['版本',response.model_version],['数据文件',response.dataset_name],
-            ['文件来源标注',m.input_sources?.join('、') || '未标注'],
-            ['数据指纹',m.dataset_sha256 || '—'],['训练时间',trainedAt],
-            ['训练轮数',(m.history?.length??0)+' 轮，最佳验证轮次 '+(m.best_epoch??'—')],
-            ['网络结构',response.architecture.join(' → ')+'（'+response.user_feature_count+' 项问卷特征）'],
+        const trainedAt=m.trained_at ? new Date(m.trained_at).toLocaleString('en-GB',{timeZone:'Asia/Hong_Kong',hour12:false})+' (Hong Kong time)' : '—';
+        const facts=table(['Training record','Active model'],[
+            ['Version',response.model_version],['Dataset',response.dataset_name],
+            ['File source labels',m.input_sources?.join(', ') || 'Unlabelled'],
+            ['Dataset fingerprint',m.dataset_sha256 || '—'],['Training time',trainedAt],
+            ['Training epochs',(m.history?.length??0)+' epochs, best validation epoch '+(m.best_epoch??'—')],
+            ['Network architecture',response.architecture.join(' → ')+' ('+response.user_feature_count+' quiz features)'],
         ]);
         const stats=node('div',undefined,'stats');
         for(const [label,value] of [
-            ['配对评分',(m.train_rows+m.val_rows+m.test_rows).toLocaleString()],
-            ['测试用户',m.test_users],['测试 MSE',m.model_mse.toFixed(4)],
-            ['模型 NDCG@3',m.model_ranking.ndcg_at_3?.toFixed(4)??'不适用'],
+            ['Rating pairs',(m.train_rows+m.val_rows+m.test_rows).toLocaleString('en-GB')],
+            ['Test users',m.test_users],['Test MSE',m.model_mse.toFixed(4)],
+            ['Model NDCG@3',m.model_ranking.ndcg_at_3?.toFixed(4)??'N/A'],
         ]){
             const stat=node('div',label,'stat');
             stat.append(node('strong',String(value)));
             stats.append(stat);
         }
         const gallery=node('div',undefined,'lab-charts');
-        if(m.history?.length) gallery.append(figure('训练与验证损失',lossGraph(m.history),'蓝色实线为训练损失，暖橙色虚线为验证损失。'));
-        const splits=[['训练集',m.train_rows],['验证集',m.val_rows],['测试集',m.test_rows]];
-        gallery.append(figure('按集合查看配对数',rowsGraph(splits,'训练、验证与测试集配对数'),
-            '训练、验证、测试分别有 '+m.train_users+'、'+m.val_users+'、'+m.test_users+' 位用户。'));
+        if(m.history?.length) gallery.append(figure('Training and validation loss',lossGraph(m.history),'The solid blue line shows training loss. The dashed orange line shows validation loss.'));
+        const splits=[['Training set',m.train_rows],['Validation set',m.val_rows],['Test set',m.test_rows]];
+        gallery.append(figure('Rating pairs by split',rowsGraph(splits,'Rating pairs in the training, validation and test sets'),
+            'Users by split: '+m.train_users+' training, '+m.val_users+' validation and '+m.test_users+' test.'));
         if(m.prediction_sample?.length){
-            gallery.append(figure('预测评分与标签',predictionGraph(m.prediction_sample),
-                '每个点为测试集中一条合格候选配对。虚线表示预测与标签相同。'));
+            gallery.append(figure('Predicted scores and labels',predictionGraph(m.prediction_sample),
+                'Each dot represents one eligible pair in the test set. The dashed line marks where predictions equal the labels.'));
         }
         if(m.per_pet_rows?.length){
             const archivedVirtual=m.per_pet_rows.some(pet=>pet.id==='nailong');
-            gallery.append(figure('各类伙伴的配对数',rowsGraph(m.per_pet_rows.map(pet=>[pet.name,pet.rows]),'各类伙伴的配对数'),
-                archivedVirtual?'随附旧版训练记录包含奶龙的零标签占位。当前推理和新训练只处理真实宠物。':
-                '统计本次训练数据中各真实宠物的配对数。'));
+            gallery.append(figure('Rating pairs by companion',rowsGraph(m.per_pet_rows.map(pet=>[pet.name,pet.rows]),'Rating pairs by companion'),
+                archivedVirtual?'The bundled training history includes zero-score placeholders for Naylong. Current inference and new training use real-pet profiles only.':
+                'Counts rating pairs for each real pet in this training dataset.'));
         }
-        box.append(stats,facts,gallery,table(['方法','测试 MSE ↓','NDCG@3 ↑'],[
-            ['神经网络',m.model_mse.toFixed(6),m.model_ranking.ndcg_at_3?.toFixed(4)??'不适用'],
-            ['专家规则',m.rule_mse.toFixed(6),m.rule_ranking.ndcg_at_3?.toFixed(4)??'不适用'],
+        box.append(stats,facts,gallery,table(['Method','Test MSE ↓','NDCG@3 ↑'],[
+            ['Neural Network',m.model_mse.toFixed(6),m.model_ranking.ndcg_at_3?.toFixed(4)??'N/A'],
+            ['Expert System',m.rule_mse.toFixed(6),m.rule_ranking.ndcg_at_3?.toFixed(4)??'N/A'],
         ]),node('p',m.disclaimer+' '+response.notice,'small'));
     }catch(error){
         box.textContent=error.message;

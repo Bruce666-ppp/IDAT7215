@@ -1,4 +1,4 @@
-import {initialStats, speciesConfig} from './desktop-pet-config.js';
+import {initialStats, speciesConfig} from './desktop-pet-config.js?v=en-GB';
 
 const byId = id => document.getElementById(id);
 const widget = byId('desktop-pet');
@@ -8,20 +8,40 @@ const panel = byId('pet-panel');
 const notice = byId('pet-message');
 const storageKey = 'pawthfinder_desktop_pets';
 const labels = {
-    satiety: '饱腹 Satiety', hydration: '水分 Hydration', happiness: '心情 Happiness',
-    energy: '体力 Energy', health: '健康 Health', bond: '亲密 Bond',
+    satiety: 'Satiety', hydration: 'Hydration', happiness: 'Happiness',
+    energy: 'Energy', health: 'Health', bond: 'Bond',
+};
+// Keep rule keys and saved history intact while presenting their labels in English.
+const ruleLabels = {
+    '属性正常': 'Attributes in range',
+    '陪伴间隔较长': 'Time since last interaction',
+    '兔子干草提醒': 'Rabbit hay reminder',
+    '物种日常权重': 'Species routine weight',
+    '小狗活动权重': 'Puppy activity weight',
+    '手动互动': 'Manual interaction',
+    '短时间内抚摸过多': 'Too much petting in a short time',
+    '奶龙出场': 'Naylong entrance',
+    '开启桌宠': 'Desktop pet opened',
+};
+const legacyActionLabels = {
+    '抚摸': 'Pet', '喂食': 'Feed', '饮水': 'Drink', '玩耍': 'Play', '睡觉': 'Sleep',
+    '健康检查': 'Health check', '拖动位置': 'Move', '跳舞': 'Dance', '洗澡': 'Bath',
+    '陪伴学习': 'Study together', '健康提醒': 'Health reminder', '提醒饮水': 'Water reminder',
+    '提醒喂食': 'Food reminder', '自动睡觉': 'Fall asleep', '邀请互动': 'Ask for company',
+    '待机': 'Idle', '邀请玩耍': 'Invite play', '请求干草': 'Ask for hay',
+    '小憩': 'Nap', '自主移动': 'Explore', '暂时躲开': 'Move away briefly', '全息召唤': 'Holographic entrance',
 };
 const actions = {
-    pet: {state: 'HAPPY', label: '抚摸', duration: 1700, cooldown: 1350, gain: {happiness: 7, bond: 4}},
-    feed: {state: 'EATING', label: '喂食', duration: 3200, cooldown: 3800, gain: {satiety: 24}},
-    drink: {state: 'DRINKING', label: '饮水', duration: 2800, cooldown: 3500, gain: {hydration: 26}},
-    play: {state: 'PLAYING', label: '玩耍', duration: 4600, cooldown: 5200, gain: {happiness: 18, bond: 6, energy: -13, satiety: -6, hydration: -7}},
-    sleep: {state: 'SLEEPING', label: '睡觉', duration: 16000, cooldown: 5000},
-    check: {state: 'IDLE', label: '健康检查', duration: 3400, cooldown: 2500},
-    move: {state: 'MOVING', label: '拖动位置', duration: 1550, cooldown: 0},
-    dance: {state:'DANCING', label:'跳舞', duration:3700, cooldown:4300, gain:{happiness:12,bond:4,energy:-6}, message:'来跳支舞！'},
-    bath: {state:'BATHING', label:'洗澡', duration:3400, cooldown:4300, gain:{happiness:5,bond:3}, message:'泡泡澡时间。'},
-    study: {state:'STUDYING', label:'陪伴学习', duration:26000, cooldown:5000, gain:{bond:5}, message:'我陪你一起学习。'},
+    pet: {state: 'HAPPY', label: 'Pet', duration: 1700, cooldown: 1350, gain: {happiness: 7, bond: 4}},
+    feed: {state: 'EATING', label: 'Feed', duration: 3200, cooldown: 3800, gain: {satiety: 24}},
+    drink: {state: 'DRINKING', label: 'Drink', duration: 2800, cooldown: 3500, gain: {hydration: 26}},
+    play: {state: 'PLAYING', label: 'Play', duration: 4600, cooldown: 5200, gain: {happiness: 18, bond: 6, energy: -13, satiety: -6, hydration: -7}},
+    sleep: {state: 'SLEEPING', label: 'Sleep', duration: 16000, cooldown: 5000},
+    check: {state: 'IDLE', label: 'Health check', duration: 3400, cooldown: 2500},
+    move: {state: 'MOVING', label: 'Move', duration: 1550, cooldown: 0},
+    dance: {state:'DANCING', label:'Dance', duration:3700, cooldown:4300, gain:{happiness:12,bond:4,energy:-6}, message:'Let’s dance!'},
+    bath: {state:'BATHING', label:'Bath', duration:3400, cooldown:4300, gain:{happiness:5,bond:3}, message:'Time for a bubble bath.'},
+    study: {state:'STUDYING', label:'Study together', duration:26000, cooldown:5000, gain:{bond:5}, message:'I’ll keep you company while you study.'},
 };
 const nailongActions = new Set(['dance','bath','study']);
 const soundKey = 'pawthfinder_nailong_muted';
@@ -124,7 +144,7 @@ for (const [key, label] of Object.entries(labels)){
     slider.type = 'range';
     slider.min = 0;
     slider.max = 100;
-    slider.setAttribute('aria-label', '调整 '+label);
+    slider.setAttribute('aria-label', 'Adjust '+label);
     sliderLabel.append(label, slider);
     byId('pet-sliders').append(sliderLabel);
     slider.addEventListener('input', ()=>{
@@ -162,8 +182,9 @@ function tell(message, now = timestamp()){
 function paintHistory(){
     byId('pet-history').replaceChildren(...pet().history.map(item=>{
         const row = document.createElement('li');
-        row.textContent = new Date(item.at).toLocaleTimeString('zh-HK', {hour: '2-digit', minute: '2-digit', second: '2-digit'})
-            + ' · ' + item.action + ' · ' + item.rule;
+        row.textContent = new Date(item.at).toLocaleTimeString('en-GB', {hour: '2-digit', minute: '2-digit', second: '2-digit'})
+            + ' · ' + (legacyActionLabels[item.action] ?? item.action)
+            + ' · ' + (ruleLabels[item.rule] ?? item.rule);
         return row;
     }));
 }
@@ -185,7 +206,7 @@ function publish(next, now, pause = 0, record = true){
     for (const {slider} of Object.values(controls)) slider.disabled = isSpawning();
     replay.disabled = isSpawning() || canvasHost.hidden;
     byId('pet-state').textContent = next.state;
-    byId('pet-rule').textContent = next.rule;
+    byId('pet-rule').textContent = ruleLabels[next.rule] ?? next.rule;
     byId('pet-behavior').textContent = next.action;
     byId('pet-reason').textContent = next.reason;
     byId('pet-zzz').hidden = next.state !== 'SLEEPING';
@@ -203,23 +224,23 @@ function publish(next, now, pause = 0, record = true){
 
 function need(stats, profile){
     if (stats.health < 40) return {
-        state:'UNWELL', rule:'Health < 40', action:'健康提醒', reason:'健康值偏低，检查饱腹、水分和体力。',
-        message:'有点不舒服，先检查我的照护状态。',
+        state:'UNWELL', rule:'Health < 40', action:'Health reminder', reason:'Health is low. Check satiety, hydration and energy.',
+        message:'I’m feeling a little unwell. Check how I’m doing.',
     };
     if (stats.hydration < 30) return {
-        state:'IDLE', rule:'Hydration < 30', action:'提醒饮水', reason:'水分不足，等待你提供水。',
-        message:'我渴了。',
+        state:'IDLE', rule:'Hydration < 30', action:'Water reminder', reason:'Hydration is low. Waiting for you to offer water.',
+        message:'I’m thirsty.',
     };
     if (stats.satiety < 30) return {
-        state:'IDLE', rule:'Satiety < 30', action:'提醒喂食', reason:'饱腹值偏低，等待你提供' + profile.food + '。',
-        message:profile.foodReminder ? 'Time for some hay!' : '我饿了。',
+        state:'IDLE', rule:'Satiety < 30', action:'Food reminder', reason:'Satiety is low. Waiting for you to offer ' + profile.food + '.',
+        message:profile.foodReminder ? 'Time for some hay!' : 'I’m hungry.',
     };
     if (stats.energy < 25) return {
-        state:'SLEEPING', rule:'Energy < 25', action:'自动睡觉', reason:'体力不足，先停下来恢复体力。',
+        state:'SLEEPING', rule:'Energy < 25', action:'Fall asleep', reason:'Energy is low. Resting to recover.',
         message:profile.nap,
     };
     if (stats.happiness < 40) return {
-        state:'IDLE', rule:'Happiness < 40', action:'邀请互动', reason:'心情偏低，想和你互动。',
+        state:'IDLE', rule:'Happiness < 40', action:'Ask for company', reason:'Happiness is low. Looking for time with you.',
         message:profile.invite,
     };
     return null;
@@ -235,35 +256,35 @@ function decide(now){
         return;
     }
     if (currentDecision?.rule === 'Energy < 25' && stats.energy < 60){
-        publish({...currentDecision, reason:'继续安静休息，直到体力恢复到 60。'}, now);
+        publish({...currentDecision, reason:'Resting until energy reaches 60.'}, now);
         return;
     }
     if (now < nextRoutine){
         if (currentDecision?.state !== 'IDLE' || currentDecision?.rule !== '属性正常'){
-            publish({state:'IDLE',rule:'属性正常',action:'待机',reason:'当前条件充足，安静观察。'},now);
+            publish({state:'IDLE',rule:'属性正常',action:'Idle',reason:'Needs are met. Watching quietly.'},now);
         }
         return;
     }
     nextRoutine = now + 8000 + Math.random() * 3500;
     const minutesAway = (now - pet().lastInteraction) / 60000;
     if (profile.reunionMinutes && minutesAway >= profile.reunionMinutes){
-        publish({state:'IDLE',rule:'陪伴间隔较长',action:'邀请玩耍',reason:'小狗一段时间没有和你互动。',message:profile.missed},now,4600);
+        publish({state:'IDLE',rule:'陪伴间隔较长',action:'Invite play',reason:'The puppy hasn’t spent time with you for a while.',message:profile.missed},now,4600);
         return;
     }
     if (profile.foodReminder && stats.satiety < profile.foodReminder){
-        publish({state:'IDLE',rule:'兔子干草提醒',action:'请求干草',reason:'兔子的游戏设定更常提醒补充干草。',message:'Time for some hay!'},now,4600);
+        publish({state:'IDLE',rule:'兔子干草提醒',action:'Ask for hay',reason:'The rabbit simulation gives more frequent reminders for hay.',message:'Time for some hay!'},now,4600);
         return;
     }
     let roll = Math.random();
     const habit = Object.entries(profile.activity).find(([, weight])=>(roll -= weight) < 0)?.[0];
     if (habit === 'sleep' && stats.energy < 93){
-        publish({state:'SLEEPING',rule:'物种日常权重',action:'小憩',reason:'根据该物种的休息权重选择小憩。',message:profile.nap},now,9500);
+        publish({state:'SLEEPING',rule:'物种日常权重',action:'Nap',reason:'The species’ rest tendency favours a nap.',message:profile.nap},now,9500);
     } else if (habit === 'move'){
-        publish({state:'MOVING',rule:'物种日常权重',action:'自主移动',reason:profile.wander},now,2450);
+        publish({state:'MOVING',rule:'物种日常权重',action:'Explore',reason:profile.wander},now,2450);
     } else if (habit === 'invite'){
-        publish({state:'IDLE',rule:'小狗活动权重',action:'邀请玩耍',reason:'小狗的游戏设定偏好活动和陪伴。',message:profile.invite},now,4000);
+        publish({state:'IDLE',rule:'小狗活动权重',action:'Invite play',reason:'The puppy simulation favours activity and company.',message:profile.invite},now,4000);
     } else {
-        publish({state:'IDLE',rule:'属性正常',action:'待机',reason:'当前条件充足，安静观察。'},now);
+        publish({state:'IDLE',rule:'属性正常',action:'Idle',reason:'Needs are met. Watching quietly.'},now);
     }
 }
 
@@ -283,21 +304,21 @@ export function interactWithPet(action){
     const profile = config();
     const rule = actions[action];
     if (now - (animal.lastAction[action] || 0) < rule.cooldown){
-        tell('稍等一会儿再试。',now);
+        tell('Wait a moment before trying again.',now);
         return;
     }
     advance(now);
     animal.lastAction[action] = now;
     animal.lastInteraction = now;
     nextRoutine = now + rule.duration + 5000;
-    let decision = {state:rule.state, rule:'手动互动', action:rule.label, reason:'用户选择了'+rule.label+'。', message:rule.message};
+    let decision = {state:rule.state, rule:'手动互动', action:rule.label, reason:'You chose '+rule.label+'.', message:rule.message};
     if (action === 'pet' && profile.petLimit){
         animal.petTimes = animal.petTimes.filter(time => now - time < 14000);
         if (animal.petTimes.length >= profile.petLimit){
             change({happiness:-profile.petLoss});
             publish({
                 state:store.selected === 'rabbit' ? 'MOVING' : 'IDLE',
-                rule:'短时间内抚摸过多', action:'暂时躲开', reason:'让桌宠安静片刻再互动。', message:profile.reject,
+                rule:'短时间内抚摸过多', action:'Move away briefly', reason:'Give your desktop pet a quiet moment before interacting again.', message:profile.reject,
             },now,2000);
             paintStats();
             return;
@@ -310,17 +331,17 @@ export function interactWithPet(action){
         if (action === 'play' && store.selected === 'dog') gains.happiness = 21;
         change(gains);
     }
-    if (action === 'feed') decision.message = '吃一点' + profile.food + '。';
-    if (action === 'drink') decision.message = '咕噜，喝点水。';
+    if (action === 'feed') decision.message = 'Time for some ' + profile.food + '.';
+    if (action === 'drink') decision.message = 'A little sip of water.';
     if (action === 'pet') decision.message = profile.affection;
-    if (action === 'play') decision.message = profile.toy + '来了！';
+    if (action === 'play') decision.message = 'Here comes the ' + profile.toy + '!';
     if (action === 'sleep') decision.message = profile.nap;
     if (action === 'check'){
         const concern = need(animal.stats,profile);
         const issue = concern?.state === 'UNWELL' ? concern : null;
         decision = {...decision,state:issue?.state || 'IDLE',rule:concern?.rule || '属性正常',
-            reason:concern?.reason || '目前没有触发照护提醒，保持规律互动。',
-            message:concern?.message || '现在状态不错。'};
+            reason:concern?.reason || 'No care reminders are active. Keep interacting regularly.',
+            message:concern?.message || 'I’m doing well.'};
     }
     publish(decision,now,rule.duration);
     paintStats();
@@ -348,7 +369,7 @@ function syncVisibility(){
     const animal = pet();
     widget.hidden = !animal || store.hidden;
     byId('pet-list-toolbar').hidden = !animal;
-    byId('pet-visibility').textContent = store.hidden ? '显示桌宠' : '隐藏桌宠';
+    byId('pet-visibility').textContent = store.hidden ? 'Show desktop pet' : 'Hide desktop pet';
     const visible = isVisible();
     if (!visible){
         summonRequested = false;
@@ -369,7 +390,7 @@ function prepareSound(){
 }
 
 function paintSound(){
-    sound.textContent = soundMuted ? '静音 Sound off' : '音效 Sound on';
+    sound.textContent = soundMuted ? 'Sound off' : 'Sound on';
     sound.setAttribute('aria-pressed',String(!soundMuted));
 }
 
@@ -385,10 +406,10 @@ function startEntrance(){
                 animal.updatedAt = now;
                 heldUntil = now+(completed ? 2800 : 0);
                 nextRoutine = now+5500;
-                stageHint.textContent = '点击互动 · 拖动位置';
+                stageHint.textContent = 'Click to interact · Drag to move';
                 publish({
-                    state:'IDLE',rule:'属性正常',action:'待机',
-                    reason:completed ? '全息召唤完成。' : '已结束召唤。',
+                    state:'IDLE',rule:'属性正常',action:'Idle',
+                    reason:completed ? 'Holographic entrance complete.' : 'The holographic entrance has ended.',
                     message:completed ? config().greeting : '',
                 },now,0,false);
             },
@@ -396,11 +417,11 @@ function startEntrance(){
         clearTimeout(bubbleTimer);
         lastBubble = {message:'',at:0};
         notice.hidden = true;
-        stageHint.textContent = '全息召唤中';
-        publish({state:'SPAWNING',rule:'奶龙出场',action:'全息召唤',reason:'能量汇聚后重建并扫描模型。'},timestamp(),0,false);
+        stageHint.textContent = 'Summoning…';
+        publish({state:'SPAWNING',rule:'奶龙出场',action:'Holographic entrance',reason:'Energy gathers, then reconstructs and scans the model.'},timestamp(),0,false);
     } catch (error) {
-        byId('pet-load-status').textContent = '奶龙已载入。全息召唤启动失败，可从互动菜单重试。';
-        console.error('Pico Nailong entrance',error);
+        byId('pet-load-status').textContent = 'Naylong loaded, but the holographic entrance failed to start. Retry from the interaction menu.';
+        console.error('Pico Naylong entrance',error);
     }
 }
 
@@ -410,7 +431,7 @@ async function loadScene(appear){
     const sequence = ++loadingSequence;
     canvasHost.hidden = true;
     replay.disabled = true;
-    stageHint.textContent = '正在载入 '+config().name;
+    stageHint.textContent = 'Loading '+config().name;
     byId('pet-load-status').textContent = '';
     try {
         rendererPromise ||= import('./desktop-pet-scene.js').then(module=>module.createPetScene(canvasHost));
@@ -421,7 +442,7 @@ async function loadScene(appear){
         canvasHost.hidden = false;
         renderer.setState(currentDecision?.state || 'IDLE');
         renderer.setVisible(true);
-        stageHint.textContent = '点击互动 · 拖动位置';
+        stageHint.textContent = 'Click to interact · Drag to move';
         replay.disabled = false;
         if (summonRequested && type==='nailong'){
             summonRequested = false;
@@ -431,8 +452,8 @@ async function loadScene(appear){
         rendererPromise = renderer ? rendererPromise : null;
         if (sequence !== loadingSequence || !isVisible()) return;
         summonRequested = false;
-        stageHint.textContent = '3D 模型未载入';
-        byId('pet-load-status').textContent = '桌宠加载失败。检查浏览器的 WebGL 支持，再点 Generate Pet 重试。';
+        stageHint.textContent = '3D model unavailable';
+        byId('pet-load-status').textContent = 'The desktop pet could not load. Check WebGL support in your browser, then select Generate Pet again.';
         console.error('Pico 3D pet',error);
     }
 }
@@ -460,8 +481,8 @@ export function generateDesktopPet(type, clicked = true){
         byId('pet-feed').title = config().food;
         byId('pet-play').title = config().toy;
         for (const control of widget.querySelectorAll('[data-nailong-only]')) control.hidden = type!=='nailong';
-        stage.setAttribute('aria-label',config().name+'，点击互动或拖动');
-        publish({state:'IDLE',rule:'开启桌宠',action:'待机',reason:'已载入该物种的本地状态。',message:type==='nailong' ? '' : config().greeting},now);
+        stage.setAttribute('aria-label',config().name+'. Click to interact or drag to move.');
+        publish({state:'IDLE',rule:'开启桌宠',action:'Idle',reason:'The saved state for this species has loaded.',message:type==='nailong' ? '' : config().greeting},now);
         paintStats();
     }
     store.hidden = false;

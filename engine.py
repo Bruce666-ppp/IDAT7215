@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 
-from core import BASE,REAL_PETS,SCHEMA,CATALOG_HASH,ProfileError,features,assess,rule_score,validate
+from core import BASE,PET_TEXT,REAL_PETS,SCHEMA,CATALOG_HASH,ProfileError,features,assess,rule_score,validate
 from decision import Status,decision
 from network import PetMLP
 
@@ -15,19 +15,19 @@ logger = logging.getLogger(__name__)
 class Recommender:
     def __init__(self,model_path=None):
         path=BASE/'artifacts/model.pt' if model_path is None else Path(model_path)
-        self.model_hash=None; self.dataset_sha256=None; self.model=None; self.source='rules_only'; self.status='未加载模型：当前使用专家规则评分'
-        self.version=None; self.metrics=None; self.dataset_name='项目随附合成数据'
+        self.model_hash=None; self.dataset_sha256=None; self.model=None; self.source='rules_only'; self.status='Model unavailable · Using Expert System scores'
+        self.version=None; self.metrics=None; self.dataset_name='Bundled synthetic dataset'
         self.load_failed=False
         if path.exists():
             try:
                 checkpoint=torch.load(path,map_location='cpu',weights_only=True)
                 if checkpoint['schema']!=SCHEMA or checkpoint['catalog_hash']!=CATALOG_HASH:
-                    raise ValueError('特征或宠物档案已修改，请重新训练')
+                    raise ValueError('The feature schema or pet catalog has changed. Retrain the model.')
                 self.model=PetMLP(); self.model.load_state_dict(checkpoint['state_dict']); self.model.eval()
-                self.model_hash=hashlib.sha256(path.read_bytes()).hexdigest(); self.dataset_sha256=checkpoint.get('dataset_sha256'); self.source=checkpoint['source']; self.status='已加载深度学习模型'
+                self.model_hash=hashlib.sha256(path.read_bytes()).hexdigest(); self.dataset_sha256=checkpoint.get('dataset_sha256'); self.source=checkpoint['source']; self.status='Neural Network model loaded'
                 self.version=self.model_hash[:12]
             except Exception as e:
-                self.model=None; self.load_failed=True; self.status=f'模型加载失败：{type(e).__name__}'
+                self.model=None; self.load_failed=True; self.status=f'Could not load the model: {type(e).__name__}'
                 logger.exception('Could not load the PawthFinder model')
             if self.model is not None:
                 try:
@@ -46,20 +46,20 @@ class Recommender:
             return decision(status,str(error),ranges=error.ranges,model=model,
                             inference='SKIPPED_OUT_OF_DOMAIN' if error.ranges else 'SKIPPED_INVALID_INPUT')
         if self.load_failed or (require_model and self.model is None):
-            return decision(Status.SYSTEM_ERROR,'暂时无法加载推荐模型，请稍后重试。',
+            return decision(Status.SYSTEM_ERROR,'The recommendation model is temporarily unavailable. Try again shortly.',
                             profile=u,inference='FAILED',model=model)
 
         candidates=[]; excluded=[]
         for p in REAL_PETS:
             report=assess(u,p)
-            item={'id':p['id'],'name':p['name'],'emoji':p['emoji'],**report}
+            item={'id':p['id'],'name':PET_TEXT[p['id']]['name'],'emoji':p['emoji'],**report}
             if report['eligible']:
                 candidates.append((p,item))
             else:
                 excluded.append(item)
         trace={'profile':u,'excluded':excluded,'eligible_count':len(candidates),'model':model}
         if not candidates:
-            return decision(Status.NO_ELIGIBLE_PET,f'当前条件下，{len(excluded)} 种真实宠物档案均触发了硬性筛选规则。',
+            return decision(Status.NO_ELIGIBLE_PET,f'All {len(excluded)} real-pet profiles were excluded by the hard constraints for your current answers.',
                             inference='SKIPPED_NO_ELIGIBLE',**trace)
 
         baseline=[rule_score(u,pet,assessment=item) for pet,item in candidates]
@@ -76,11 +76,11 @@ class Recommender:
                 inference='EXECUTED'
             except Exception:
                 logger.exception('PawthFinder inference failed')
-                return decision(Status.SYSTEM_ERROR,'模型计算遇到问题，请稍后重新提交。',inference='FAILED',**trace)
+                return decision(Status.SYSTEM_ERROR,'Model inference failed. Submit the quiz again shortly.',inference='FAILED',**trace)
         accepted=[]
         for (_,item),score,rule in zip(candidates,scores,baseline):
             item.update(score=round(score*100,1),rule_score=round(rule*100,1))
             accepted.append(item)
         accepted.sort(key=lambda p:(-p['score'],p['id']))
-        reason=f'{len(accepted)} 种真实宠物通过档案筛选，按'+('模型适配评分' if inference=='EXECUTED' else '专家规则备用评分')+'排序。'
+        reason=f'{len(accepted)} real-pet profiles passed screening. Ranked by '+('model compatibility score' if inference=='EXECUTED' else 'Expert System fallback score')+'.'
         return decision(Status.REAL_PET_RECOMMENDATION,reason,recommendations=accepted,inference=inference,**trace)

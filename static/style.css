@@ -321,7 +321,7 @@ progress::-moz-progress-bar { background: var(--action); border-radius: var(--ra
     content: "";
     position: absolute;
     inset-inline: 29% 14%;
-    bottom: -.09em;
+    bottom: -.18em;
     height: .15em;
     border-top: .075em solid var(--peach);
     border-radius: 50%;
@@ -330,7 +330,7 @@ progress::-moz-progress-bar { background: var(--action); border-radius: var(--ra
 .hero-rays {
     position: absolute;
     top: .15em;
-    left: 49%;
+    left: 61%;
     width: .11em;
     height: .33em;
     transform: rotate(12deg);

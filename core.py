@@ -6,9 +6,13 @@ from pathlib import Path
 BASE = Path(__file__).resolve().parent
 PETS = json.loads((BASE / 'data/pets.json').read_text(encoding='utf-8'))
 REAL_PETS = tuple(pet for pet in PETS if not pet.get('fictional'))
-ALLERGY_OPTIONS = {pet['id']: pet.get('display_name') or pet['name'] for pet in REAL_PETS}
+# The English display copy is separate from the catalog fingerprint used by the model.
+PET_TEXT = json.loads((BASE / 'data/pets.en.json').read_text(encoding='utf-8'))
+DISPLAY_PETS = [{**pet, **PET_TEXT[pet['id']]} for pet in PETS]
+ALLERGY_OPTIONS = {pet['id']: PET_TEXT[pet['id']]['display_name'] for pet in REAL_PETS}
 ALLERGY_FIELDS = {'has_allergy', 'allergy_types', 'allergy_uncertain', 'other_allergy'}
-ALLERGY_CAUTION = '过敏风险因人而异。此问卷依据你提供的对象做教学筛选。若对过敏原存疑，可咨询过敏专科医生。'
+ALLERGY_CAUTION = 'Allergy risks vary from person to person. This quiz uses the allergies you report for demonstration screening. If you’re unsure about an allergen, you can consult an allergy specialist.'
+MODEL_EVALUATION_NOTE = 'These evaluation results describe this dataset and its labels only.'
 SCHEMA = 2
 # Monetary values are HKD per month. All catalog thresholds are editable DEMO assumptions.
 LIMITS = {'space': (0, 500), 'time': (0, 12), 'budget': (0, 10000),
@@ -24,11 +28,11 @@ DEFAULT = dict(space=30,time=2,budget=1000,activity=3,noise=3,grooming=3,
                alone_hours=8,away_nights=0,habitat_control=False,live_insects=False)
 OPTIONAL_PROFILE_FIELDS = {'alone_hours', 'away_nights', 'habitat_control', 'live_insects'}
 FIELD_NAMES = {
-    'space':'照护空间', 'time':'每日照护时间', 'budget':'每月预算', 'activity':'活动强度',
-    'noise':'可接受噪声', 'grooming':'护理强度', 'experience':'饲养经验', 'years':'承诺期限',
-    'alone_hours':'连续离家时长', 'away_nights':'每月外宿晚数', 'pet_allowed':'居所许可',
-    'backup':'替代照护', 'habitat_control':'饲养环境管理', 'live_insects':'活饵准备',
-    'allergy':'动物相关过敏', 'has_allergy':'动物相关过敏',
+    'space':'Available space', 'time':'Daily care time', 'budget':'Monthly budget', 'activity':'Activity level',
+    'noise':'Noise tolerance', 'grooming':'Grooming and cleaning', 'experience':'Pet care experience', 'years':'Care commitment',
+    'alone_hours':'Hours away at a time', 'away_nights':'Nights away per month', 'pet_allowed':'Housing permission',
+    'backup':'Backup care', 'habitat_control':'Habitat management', 'live_insects':'Live feeder insect preparation',
+    'allergy':'Animal-related allergy', 'has_allergy':'Animal-related allergy',
 }
 
 
@@ -44,33 +48,33 @@ def validate_allergy(raw):
     types = raw.get('allergy_types', [])
     if (not isinstance(types, list) or len(types) > len(ALLERGY_OPTIONS)
             or any(not isinstance(kind, str) or kind not in ALLERGY_OPTIONS for kind in types)):
-        raise ProfileError('过敏对象须从真实宠物选项中选择。')
+        raise ProfileError('Choose allergens from the real-pet options.')
     uncertain = raw.get('allergy_uncertain', False)
     if type(uncertain) is not bool:
-        raise ProfileError('不确定具体过敏原选项须为是或否。')
+        raise ProfileError('The allergen uncertainty field must be true or false.')
     other = raw.get('other_allergy', '')
     if not isinstance(other, str) or len(other.strip()) > 100:
-        raise ProfileError('其他过敏原须为最多 100 字的说明。')
+        raise ProfileError('Describe any other allergens in up to 100 characters.')
     return {'has_allergy':True, 'allergy_types':list(dict.fromkeys(types)),
             'allergy_uncertain':uncertain, 'other_allergy':other.strip()}
 
 
 def validate(raw):
     if not isinstance(raw, dict):
-        raise ProfileError('问卷须为有效的 JSON 对象。')
+        raise ProfileError('Submit the quiz as a valid JSON object.')
     required = set(USER_KEYS) - OPTIONAL_PROFILE_FIELDS - {'allergy'}
     if 'has_allergy' not in raw:
         required.add('allergy')
     missing = required - raw.keys()
     if missing:
-        raise ProfileError('请填写：'+'、'.join(FIELD_NAMES[key] for key in USER_KEYS if key in missing)+'。')
+        raise ProfileError('Complete the following fields: '+', '.join(FIELD_NAMES[key] for key in USER_KEYS if key in missing)+'.')
     if raw.keys() - set(USER_KEYS) - ALLERGY_FIELDS:
-        raise ProfileError('问卷包含无法识别的字段。')
+        raise ProfileError('The quiz contains unrecognised fields.')
     detailed = bool(raw.keys() & ALLERGY_FIELDS)
     raw = DEFAULT | raw
     has_allergy = raw.get('has_allergy', raw['allergy'])
     if type(has_allergy) is not bool or type(raw['allergy']) is not bool:
-        raise ProfileError('动物相关过敏须为是或否。')
+        raise ProfileError('Select yes or no for animal-related allergies.')
     raw['allergy'] = has_allergy
     out = {}
     ranges = []
@@ -78,22 +82,22 @@ def validate(raw):
         v=raw[k]
         label=FIELD_NAMES[k]
         if type(v) not in (int,float) or (type(v) is float and not math.isfinite(v)) or v < 0:
-            raise ProfileError(f'{label}须为大于或等于 0 的有限数值。')
+            raise ProfileError(f'{label} must be a finite number of 0 or more.')
         if not lo <= v <= hi:
             ranges.append({'field':k,'label':label,'minimum':lo,'maximum':hi})
         elif k in ('activity','noise','grooming','experience','alone_hours','away_nights') and int(v)!=v:
-            raise ProfileError(f'{label}须为整数。')
+            raise ProfileError(f'{label} must be a whole number.')
         else:
             out[k]=float(v)
     for k in FLAGS:
         if type(raw[k]) is not bool:
-            raise ProfileError(f'{FIELD_NAMES[k]}须为是或否。')
+            raise ProfileError(f'{FIELD_NAMES[k]} must be true or false.')
         out[k]=raw[k]
     if detailed:
         out.update(validate_allergy({**raw,'has_allergy':has_allergy}))
     if ranges:
-        allowed='、'.join(f"{item['label']} {item['minimum']}–{item['maximum']}" for item in ranges)
-        raise ProfileError(f'当前输入超出演示模型适用范围（{allowed}），系统无法可靠判断真实宠物适配度。', ranges=ranges)
+        allowed=', '.join(f"{item['label']} {item['minimum']}–{item['maximum']}" for item in ranges)
+        raise ProfileError(f'Your answers are outside the demo model’s supported range ({allowed}). Real-pet compatibility cannot be assessed reliably.', ranges=ranges)
     return out
 
 def features(u,p):
@@ -112,34 +116,35 @@ def assess(u,p):
     def reject(rule_id, reason, **comparison):
         violations.append({'rule_id':rule_id,'reason':reason,**comparison})
 
+    note = PET_TEXT.get(p.get('id'), p)['note']
     if p.get('fictional'):
-        return {'eligible':False,'blocked':['虚拟伙伴属于独立的桌宠模块'],'exclusion_reasons':[],
-                'reasons':[],'warnings':[p['note']]}
-    if not u['pet_allowed']: reject('H01','居住条件尚未允许饲养宠物')
-    if not u['backup']: reject('H02','尚未安排外出或紧急情况的替代照护')
+        return {'eligible':False,'blocked':['Virtual companions are available in the separate desktop pet feature.'],'exclusion_reasons':[],
+                'reasons':[],'warnings':[note]}
+    if not u['pet_allowed']: reject('H01','Your housing does not currently allow pets.')
+    if not u['backup']: reject('H02','Backup care for absences or emergencies has not been arranged.')
     if p.get('requires_habitat') and not u.get('habitat_control', DEFAULT['habitat_control']):
-        reject('H03','此档案需要能监测并管理温度等饲养环境条件')
+        reject('H03','This profile requires you to monitor and manage habitat conditions such as temperature.')
     if p.get('requires_live_insects') and not u.get('live_insects', DEFAULT['live_insects']):
-        reject('H04','此档案需要能定期准备和处理活饵昆虫')
-    for k,rule_id,unit in [('space','H05','㎡'),('time','H06','小时'),('budget','H07','港币'),
-                           ('years','H08','年'),('noise','H09','级')]:
+        reject('H04','This profile requires regular preparation and handling of live feeder insects.')
+    for k,rule_id,unit in [('space','H05','m²'),('time','H06','h'),('budget','H07','HKD'),
+                           ('years','H08','years'),('noise','H09','levels')]:
         if u[k]<p[k]:
-            reject(rule_id,f'{FIELD_NAMES[k]} {u[k]:g} {unit}，低于档案要求的 {p[k]:g} {unit}',
+            reject(rule_id,f'{FIELD_NAMES[k]} {u[k]:g} {unit} is below the profile requirement of {p[k]:g} {unit}.',
                    field=k,actual=u[k],required=p[k],unit=unit)
     if u['allergy'] and p['id'] in u.get('allergy_types', []):
-        reject('A01',f"你选择了对{ALLERGY_OPTIONS[p['id']]}过敏，档案与该过敏对象一致")
+        reject('A01',f"Your selected allergy matches this profile ({ALLERGY_OPTIONS[p['id']]}).")
     if allergy_uncertain(u) and p['fur']:
-        reject('A02','具体过敏原尚未确认，现有演示规则保守排除此有毛宠物档案')
-    reasons=[f'可提供 {u["time"]:g} 小时/天；档案要求 {p["time"]:g} 小时',
-             f'预算 {u["budget"]:g} 港币/月；档案估计 {p["budget"]:g} 港币/月',
-             f'可用空间 {u["space"]:g} ㎡；档案阈值 {p["space"]:g} ㎡']
-    warnings=[p['note'],'档案数值为教学假设，不是兽医或动物福利标准；需按个体与当地情况核实。']
-    if u['experience']<p['experience']: warnings.append('经验不足，建议先学习照护知识并获得指导。')
-    if u['grooming']<p['grooming']: warnings.append('你愿意承担的清洁护理强度可能不足。')
+        reject('A02','The allergen is unconfirmed, so the demo applies a precautionary filter to this pet with fur.')
+    reasons=[f'You can provide {u["time"]:g} h of care per day. The profile requires {p["time"]:g} h.',
+             f'Your monthly budget is HK$ {u["budget"]:g}. The profile estimates HK$ {p["budget"]:g} per month.',
+             f'You have {u["space"]:g} m² available. The profile requires {p["space"]:g} m².']
+    warnings=[note,'Care figures are for teaching purposes only. Check the individual animal’s needs and local requirements against relevant veterinary and welfare guidance.']
+    if u['experience']<p['experience']: warnings.append('Build your care knowledge and seek guidance if you have less experience than the profile calls for.')
+    if u['grooming']<p['grooming']: warnings.append('The amount of grooming and cleaning you can take on may fall short of this profile’s needs.')
     if u.get('alone_hours', DEFAULT['alone_hours']) > p.get('alone_reference', 10):
-        warnings.append('工作日连续离家时间偏长，建议安排中途检查或照护。')
+        warnings.append('You’re away for long stretches on weekdays. Consider arranging a check-in or care while you’re out.')
     if u.get('away_nights', DEFAULT['away_nights']):
-        reasons.append(f'典型月份有 {u["away_nights"]:g} 晚不在家，需确认替代照护安排。')
+        reasons.append(f'You spend {u["away_nights"]:g} nights away in a typical month. Confirm your backup care arrangements.')
     if u['allergy']: warnings.append(ALLERGY_CAUTION)
     return {'eligible':not violations,'blocked':[check['reason'] for check in violations],
             'exclusion_reasons':violations,'reasons':reasons,'warnings':warnings}
