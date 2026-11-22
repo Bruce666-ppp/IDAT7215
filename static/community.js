@@ -191,9 +191,7 @@ communityForm.addEventListener('submit',async event=>{
     cancel.disabled=true;
     setCommunityStatus(status,'正在发布…');
     try{
-        const response=await fetch('/api/community/posts',{method:'POST',body:new FormData(communityForm)});
-        const data=await response.json();
-        if(!response.ok) throw Error(data.error||'发布失败');
+        const data=await requestApi('/api/community/posts',{method:'POST',body:new FormData(communityForm)},60000);
         communityForm.reset();
         communityAuthor.value=data.author;
         showPaperFields();
@@ -249,7 +247,7 @@ function communityPost(post){
         }
         if(post.attachment_name){
             const file=node('a','下载 PDF · '+post.attachment_name);
-            file.href=root+'/paper';
+            file.href=apiUrl(root+'/paper');
             links.append(file);
         }
         article.append(links);

@@ -26,8 +26,20 @@ jobs:
       - name: Install CPU dependencies
         run: |
           python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.8.0
-          python -m pip install -r requirements.txt
+          python -m pip install -r requirements.txt -r requirements-production.txt
+      - name: Verify application
+        run: python -m pytest -q
+      - name: Check production startup
+        run: |
+          export PAWTH_DATA_DIR="$(mktemp -d)"
+          export PAWTH_REQUIRE_MODEL=1
+          gunicorn --bind 127.0.0.1:10000 --workers 1 --threads 4 'app:create_app()' &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:10000/api/health
       - name: Build website
+        env:
+          PAWTH_APP_URL: ${{ vars.PAWTH_APP_URL }}
         run: python build_pages.py
       - uses: actions/upload-pages-artifact@v4
         with:

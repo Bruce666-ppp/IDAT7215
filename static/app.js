@@ -3,22 +3,93 @@ const $=s=>document.querySelector(s);
 const node=(tag,text,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;};
 const state={pets:[],selected:[],profile:null,result:null,scenario:null};
 const pagesPreview=document.body.hasAttribute('data-pages-preview');
+const apiBase=new URL($('meta[name="pawth-api-base"]')?.content||(pagesPreview?'./snapshot/':'./api/'),document.baseURI);
+const onlineQuiz=$('#online-quiz');
 const numbers=['space','time','budget','years','activity','noise','grooming','experience','alone_hours','away_nights'];
 const flags=['pet_allowed','backup','allergy','habitat_control','live_insects'];
-async function api(path,data){
-    if(pagesPreview){
-        if(data!==undefined) throw Error('请运行 app.py 使用此功能。');
-        path='./snapshot/'+path.slice('/api/'.length)+'.json';
-    }
-    const response=await fetch(path,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-    if(!response.ok && pagesPreview) throw Error('暂时无法读取演示数据。');
-    const result=await response.json();
-    if(!response.ok) throw Error(result.error||'服务暂时不可用');
-    return result;
+function apiUrl(path){
+    const endpoint=path.slice('/api/'.length);
+    return new URL(pagesPreview?endpoint+'.json':endpoint,apiBase);
 }
+async function requestApi(path,options={},timeout=25000){
+    if(pagesPreview&&options.method==='POST') throw Error('请打开在线应用提交数据。');
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),timeout);
+    try{
+        const response=await fetch(apiUrl(path),{...options,signal:controller.signal,credentials:'same-origin'});
+        const result=await response.json().catch(()=>null);
+        if(controller.signal.aborted) throw Error('请求超时');
+        if(!response.ok){
+            const fallback=[502,503,504].includes(response.status)
+                ? '服务可能正在启动或暂不可用，请稍后重试。' : '服务请求失败，请重试。';
+            throw Error(result?.error||fallback);
+        }
+        if(!result) throw Error('服务返回了无法读取的响应，请重试。');
+        return result;
+    }catch(error){
+        if(controller.signal.aborted) throw Error('等待服务响应超时。请检查网络或稍后重新提交。');
+        if(error instanceof TypeError) throw Error('网络连接中断或无法连接服务，请检查网络后重试。');
+        throw error;
+    }finally{
+        clearTimeout(timer);
+    }
+}
+function api(path,data){
+    return requestApi(path,data===undefined?{}:{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),
+    });
+}
+
+let checkingOnlineQuiz=false;
+async function openOnlineQuiz(){
+    if(!onlineQuiz||checkingOnlineQuiz) return;
+    const match=$('#view-match');
+    const status=$('#online-status');
+    const retry=$('#online-retry');
+    const health=new URL('api/health',onlineQuiz.href);
+    checkingOnlineQuiz=true;
+    retry.hidden=true;
+    status.textContent='正在连接在线推荐服务…';
+    const slow=setTimeout(()=>{
+        status.textContent='推荐服务可能正在启动，请稍候…';
+    },5500);
+    const deadline=Date.now()+65000;
+    let unavailable='暂时无法连接在线推荐服务。请重试连接。';
+    try{
+        while(!match.hidden&&Date.now()<deadline){
+            const controller=new AbortController();
+            const timer=setTimeout(()=>controller.abort(),Math.min(16000,deadline-Date.now()));
+            try{
+                const response=await fetch(health,{credentials:'omit',cache:'no-store',signal:controller.signal});
+                const result=await response.json().catch(()=>null);
+                if(response.ok&&result?.database==='ok'){
+                    if(!match.hidden) window.location.replace(onlineQuiz.href);
+                    return;
+                }
+                if(result?.model_loaded===false){
+                    unavailable='在线服务尚未载入推荐模型，请稍后重试。';
+                    break;
+                }
+            }catch{
+                // Keep the direct application link available while the connection is retried.
+            }finally{
+                clearTimeout(timer);
+            }
+            if(!match.hidden&&Date.now()<deadline){
+                await new Promise(resolve=>setTimeout(resolve,Math.min(5000,deadline-Date.now())));
+            }
+        }
+        status.textContent=unavailable;
+        retry.hidden=false;
+    }finally{
+        clearTimeout(slow);
+        checkingOnlineQuiz=false;
+    }
+}
+$('#online-retry')?.addEventListener('click',openOnlineQuiz);
 function notify(text){$('#toast').textContent=text;}
 function modeText(mode){
-    if(mode==='rules_only') return '专家规则模式';
+    if(mode==='rules_only') return '专家规则备用模式 · 深度学习模型未启用';
     if(mode==='uploaded_user_data') return '本地上传评分 · 自训练模型';
     return mode.startsWith('synthetic') ? '随附合成数据 · 自训练模型' : '导入评分数据 · 自训练模型';
 }
@@ -40,6 +111,7 @@ function showFromLocation(){
     if(view==='model') loadModel();
     if(view==='compare') renderCompare();
     if(petRoute) openLinkedProfile();
+    if(view==='match'&&pagesPreview) void openOnlineQuiz();
     window.scrollTo({top:0,behavior:'auto'});
 }
 function show(view,petId){
@@ -172,14 +244,126 @@ if(!pets.length)return;
 const rows=[['每月预算（港币）',...pets.map(p=>p.budget)],['年度常规预算（港币）',...pets.map(p=>p.budget*12)],['每日照护时间（小时）',...pets.map(p=>p.time)],['可用空间（㎡）',...pets.map(p=>p.space)],['承诺期限（年）',...pets.map(p=>p.years)],['活动强度 / 5',...pets.map(p=>p.activity)],['噪声等级 / 5',...pets.map(p=>p.noise)],['护理强度 / 5',...pets.map(p=>p.grooming)],['经验等级 / 2',...pets.map(p=>p.experience)],['照护提醒',...pets.map(p=>p.note)]];
 if(state.result){rows.push(['当前显示推荐中的状态',...pets.map(p=>{const yes=state.result.recommendations.find(x=>x.id===p.id);return yes?`适配评分 ${yes.score.toFixed(1)}`:'未通过规则';})]);}
 rows.push(['清单操作',...pets.map(p=>{const b=node('button','移除','secondary');b.onclick=()=>toggleCompare(p.id);return b;})]);$('#compare-content').append(table(['属性',...pets.map(p=>p.emoji+' '+p.name)],rows));}
-function renderResult(r,u){state.result=r;state.profile={...u};state.scenario=null;$('#scenario-box').hidden=true;$('#scenario-result').replaceChildren();$('#scenario-apply').hidden=true;$('#cards').replaceChildren();$('#excluded').replaceChildren();$('#summary').textContent=r.message+' '+r.notice+(r.model_version?' 模型版本 '+r.model_version+'。':'');$('#export').disabled=false;$('#scenario-open').disabled=false;
-for(const [i,p] of r.recommendations.entries()){const c=node('article',undefined,'card'),head=node('div',undefined,'card-head'),left=node('div');left.append(node('h3',`${i+1}. ${p.name}`));const catalogPet=state.pets.find(x=>x.id===p.id);if(catalogPet)c.append(petArt(catalogPet));const score=node('div',`${p.score.toFixed(1)}`,'score');score.append(node('small','适配评分 / 100'));head.append(left,score);c.append(head);const bar=node('progress');bar.max=100;bar.value=p.score;bar.setAttribute('aria-label','适配评分');c.append(bar,node('p','规则检查依据（非神经网络归因）','small'),list(p.reasons));const d=node('details');d.append(node('summary','照护提醒与评分对照'),list([...p.warnings,`规则基线评分：${p.rule_score.toFixed(1)} / 100`]));c.append(d,compareButton(p));const feedback=node('div',undefined,'feedback'),label=node('span',r.ratings?.[p.id]?'评分已保存':'这个推荐适合你吗？');feedback.append(label);for(let rating=1;rating<=5;rating++){const b=node('button',String(rating));b.type='button';if(r.ratings?.[p.id]===rating)b.classList.add('selected');b.setAttribute('aria-label',`评分 ${rating} 分`);b.onclick=async()=>{try{await api('/api/feedback',{run_id:r.run_id,pet_id:p.id,rating});r.ratings={...r.ratings,[p.id]:rating};for(const other of feedback.querySelectorAll('button'))other.classList.remove('selected');b.classList.add('selected');label.textContent='评分已保存';}catch(err){label.textContent=err.message;}};feedback.append(b);}c.append(feedback);$('#cards').append(c);}
-$('#excluded-panel').hidden=r.excluded.length===0;for(const p of r.excluded){const d=node('div',undefined,'exclude-item');d.append(node('strong',p.name),list(p.blocked));$('#excluded').append(d);}renderCompare();}
-$('#quiz').addEventListener('submit',async e=>{e.preventDefault();$('#error').textContent='';$('#submit').disabled=true;try{const u=readProfile(),r=await api('/api/recommend',u);renderResult(r,u);notify('已生成推荐并保存到本会话历史。');}catch(err){$('#error').textContent=err.message;}finally{$('#submit').disabled=false;}});
+function renderResult(result,profile){
+    state.result=result;
+    state.profile={...profile};
+    state.scenario=null;
+    $('#scenario-box').hidden=true;
+    $('#scenario-result').replaceChildren();
+    $('#scenario-apply').hidden=true;
+    $('#cards').replaceChildren();
+    $('#excluded').replaceChildren();
+    const version=result.model_version?' · 模型版本 '+result.model_version:'';
+    $('#summary').textContent=modeText(result.mode)+version+'。'+result.message+' '+result.notice;
+    $('#export').disabled=false;
+    $('#scenario-open').disabled=false;
+    for(const [index,pet] of result.recommendations.entries()){
+        const card=node('article',undefined,'card');
+        const catalogPet=state.pets.find(item=>item.id===pet.id);
+        if(catalogPet) card.append(petArt(catalogPet));
+        const head=node('div',undefined,'card-head');
+        const score=node('div',pet.score.toFixed(1),'score');
+        score.append(node('small','适配评分 / 100'));
+        head.append(node('h3',(index+1)+'. '+pet.name),score);
+        const bar=node('progress');
+        bar.max=100;
+        bar.value=pet.score;
+        bar.setAttribute('aria-label','适配评分');
+        const details=node('details');
+        details.append(node('summary','照护提醒与评分对照'),
+            list([...pet.warnings,'规则基线评分：'+pet.rule_score.toFixed(1)+' / 100']));
+        card.append(head,bar,node('p','规则检查依据（非神经网络归因）','small'),list(pet.reasons),
+            details,compareButton(pet),recommendationFeedback(result,pet));
+        $('#cards').append(card);
+    }
+    $('#excluded-panel').hidden=result.excluded.length===0;
+    for(const pet of result.excluded){
+        const item=node('div',undefined,'exclude-item');
+        item.append(node('strong',pet.name),list(pet.blocked));
+        $('#excluded').append(item);
+    }
+    renderCompare();
+}
+function recommendationFeedback(result,pet){
+    const row=node('div',undefined,'feedback');
+    const label=node('span',result.ratings?.[pet.id]?'评分已保存':'这个推荐适合你吗？');
+    label.setAttribute('role','status');
+    const buttons=[];
+    for(let rating=1;rating<=5;rating++){
+        const button=node('button',String(rating));
+        button.type='button';
+        const selected=result.ratings?.[pet.id]===rating;
+        button.classList.toggle('selected',selected);
+        button.setAttribute('aria-pressed',String(selected));
+        button.setAttribute('aria-label','评分 '+rating+' 分');
+        button.onclick=async()=>{
+            for(const option of buttons) option.disabled=true;
+            label.textContent='正在保存评分…';
+            try{
+                await api('/api/feedback',{run_id:result.run_id,pet_id:pet.id,rating});
+                result.ratings={...result.ratings,[pet.id]:rating};
+                for(const option of buttons){
+                    option.classList.toggle('selected',option===button);
+                    option.setAttribute('aria-pressed',String(option===button));
+                }
+                label.textContent='评分已保存';
+            }catch(error){
+                label.textContent=error.message;
+            }finally{
+                for(const option of buttons) option.disabled=false;
+            }
+        };
+        buttons.push(button);
+    }
+    row.append(label,...buttons);
+    return row;
+}
+const quiz=$('#quiz');
+const quizSubmit=$('#submit');
+const submitLabel=quizSubmit.textContent;
+quiz.addEventListener('input',event=>event.target.removeAttribute('aria-invalid'));
+quiz.addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(pagesPreview||quizSubmit.disabled) return;
+    const errorBox=$('#error');
+    const status=$('#quiz-status');
+    errorBox.textContent='';
+    status.textContent='';
+    const invalid=quiz.querySelector('input:invalid,select:invalid,textarea:invalid');
+    if(invalid){
+        const label=invalid.closest('label')?.firstChild?.textContent.trim()||'问卷字段';
+        invalid.setAttribute('aria-invalid','true');
+        invalid.focus();
+        errorBox.textContent=label+'。'+invalid.validationMessage;
+        return;
+    }
+    const profile=readProfile();
+    quizSubmit.disabled=true;
+    quizSubmit.setAttribute('aria-busy','true');
+    quizSubmit.textContent='正在分析你的生活方式……';
+    const slow=setTimeout(()=>{
+        status.textContent='服务响应较慢，可能正在启动。请稍候…';
+    },5500);
+    try{
+        const result=await api('/api/recommend',profile);
+        renderResult(result,profile);
+        status.textContent='推荐结果已更新。';
+        $('#match-results').scrollIntoView({block:'start',
+            behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+    }catch(error){
+        errorBox.textContent=error.message;
+        status.textContent='';
+    }finally{
+        clearTimeout(slow);
+        quizSubmit.disabled=false;
+        quizSubmit.removeAttribute('aria-busy');
+        quizSubmit.textContent=submitLabel;
+    }
+});
 $('#scenario-open').onclick=()=>{if(!state.profile)return;$('#scenario-box').hidden=!$('#scenario-box').hidden;for(const k of ['budget','time','space'])$('#scenario-'+k).value=state.profile[k];};
 $('#scenario-form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;try{const before={...state.profile},after={...before};for(const k of ['budget','time','space'])after[k]=Number($('#scenario-'+k).value);const r=await api('/api/scenario',{before,after});state.scenario=after;$('#scenario-result').replaceChildren(node('p',`合格候选：${r.before_count} → ${r.after_count} 类。未通过规则的候选不显示评分。`),table(['宠物','原评分','新评分','变化'],r.changes.map(p=>[p.name,p.before===null?'—':p.before.toFixed(1),p.after===null?'—':p.after.toFixed(1),p.delta===null?p.state:`${p.delta>0?'+':''}${p.delta.toFixed(1)} · ${p.state}`])));const excluded=r.changes.filter(p=>p.blocked.length);if(excluded.length){const d=node('details');d.append(node('summary','查看新条件下仍不合格的原因'),list(excluded.map(p=>p.name+'：'+p.blocked.join('；'))));$('#scenario-result').append(d);}$('#scenario-apply').hidden=false;}catch(err){$('#scenario-result').textContent=err.message;$('#scenario-apply').hidden=true;}finally{button.disabled=false;}};
 $('#scenario-apply').onclick=()=>{if(state.scenario){fillProfile(state.scenario);notify('已填入新条件。点击“探索我的宠物伙伴”生成并保存新推荐；当前卡片仍是原结果。');}};
 $('#export').onclick=()=>{if(!state.result)return;const r=state.result,u=state.profile;const lines=['# PawthFinder 宠物推荐报告','',`记录编号：${r.run_id}`,`模型模式：${modeText(r.mode)}`,'','## 问卷资料',...Object.entries(u).map(([k,v])=>`- ${k}: ${v}`),'','## 推荐结果'];for(const [i,p] of r.recommendations.entries())lines.push(`### ${i+1}. ${p.name} · ${p.score}/100`,...p.reasons.map(t=>'- '+t),...p.warnings.map(t=>'- 提醒：'+t),'');if(!r.recommendations.length)lines.push('暂无满足规则的宠物。');lines.push('## 未通过规则',...r.excluded.map(p=>`- ${p.name}：${p.blocked.join('；')}`),'','## 说明',r.notice,'所有档案阈值为教学示例。模拟训练指标不代表真实推荐效果。');const blob=new Blob([lines.join('\n')],{type:'text/markdown;charset=utf-8'}),url=URL.createObjectURL(blob),a=node('a');a.href=url;a.download=`PawthFinder_Report_${r.run_id.slice(0,8)}.md`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);notify('已下载 Markdown 报告，可用文本编辑器打开。');};
 let defaults=null;
 for(const b of document.querySelectorAll('[data-preset]'))b.onclick=()=>{if(!defaults)return;let p={...defaults};if(b.dataset.preset==='busy')Object.assign(p,{time:.5,budget:500,years:3});if(b.dataset.preset==='active')Object.assign(p,{space:60,time:4,budget:2200,activity:5,noise:5,grooming:4,experience:1,years:18});fillProfile(p);notify('示例问卷已填入。请按真实情况修改后提交；当前结果尚未更新。');};
-api('/api/info').then(j=>{defaults=j.defaults;state.pets=j.pets;populateCostPets();$('#mode').textContent=modeText(j.mode);try{const saved=JSON.parse(localStorage.getItem('pawthfinder_compare')||'[]');if(Array.isArray(saved))state.selected=[...new Set(saved)].filter(id=>j.pets.some(p=>p.id===id)).slice(0,3);}catch{}$('#compare-count').textContent=state.selected.length;renderCatalog();renderCompare();renderHome();openLinkedProfile();}).catch(e=>{$('#mode').textContent=e.message;notify(pagesPreview?e.message:'无法连接服务，请确认 app.py 正在运行。');});
+api('/api/info').then(j=>{defaults=j.defaults;state.pets=j.pets;populateCostPets();$('#mode').textContent=modeText(j.mode);try{const saved=JSON.parse(localStorage.getItem('pawthfinder_compare')||'[]');if(Array.isArray(saved))state.selected=[...new Set(saved)].filter(id=>j.pets.some(p=>p.id===id)).slice(0,3);}catch{}$('#compare-count').textContent=state.selected.length;renderCatalog();renderCompare();renderHome();openLinkedProfile();}).catch(e=>{$('#mode').textContent=e.message;notify(e.message);});

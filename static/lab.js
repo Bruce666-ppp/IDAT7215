@@ -80,9 +80,7 @@ trainingUi.form.addEventListener('submit',async event=>{
     trainingUi.file.disabled=true;
     trainingUi.status.textContent='正在验证 CSV 和用户划分…';
     try{
-        const response=await fetch('/api/training/preview',{method:'POST',body:data});
-        const result=await response.json();
-        if(!response.ok) throw Error(result.error||'无法读取 CSV');
+        const result=await requestApi('/api/training/preview',{method:'POST',body:data},120000);
         displayJob(result);
         try{sessionStorage.setItem('paw_training_job',result.id);}catch{}
     }catch(error){
@@ -187,7 +185,7 @@ function figure(heading,graphic,caption){
 }
 
 async function restoreTraining(){
-    if(restoreAttempted||pagesPreview) return;
+    if(restoreAttempted||$('#training-upload').hidden) return;
     restoreAttempted=true;
     let saved;
     try{saved=sessionStorage.getItem('paw_training_job');}catch{}
@@ -210,7 +208,7 @@ async function loadModel(){
         $('#mode').textContent=modeText(response.mode);
         box.replaceChildren();
         if(!response.metrics){
-            box.append(node('p','当前没有配套训练记录。可上传评分 CSV 并训练新模型。'));
+            box.append(node('p',$('#training-upload').hidden?'当前没有配套训练记录。':'当前没有配套训练记录。可上传评分 CSV 并训练新模型。'));
             return;
         }
         const m=response.metrics;

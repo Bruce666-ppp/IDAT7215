@@ -1,11 +1,24 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PawthFinder · 找到适合彼此的陪伴</title><link rel="stylesheet" href="./static/style.css"><link rel="stylesheet" href="./static/desktop-pet.css"><link rel="stylesheet" href="./static/community.css"><script defer src="./static/app.js"></script><script defer src="./static/lab.js"></script><script defer src="./static/community.js"></script><script type="module" src="./static/desktop-pet.js"></script></head>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="pawth-api-base" content="{{ './snapshot/' if pages_preview else './api/' }}"><title>PawthFinder · 找到适合彼此的陪伴</title><link rel="stylesheet" href="./static/style.css"><link rel="stylesheet" href="./static/desktop-pet.css"><link rel="stylesheet" href="./static/community.css"><script defer src="./static/app.js"></script><script defer src="./static/lab.js"></script><script defer src="./static/community.js"></script><script type="module" src="./static/desktop-pet.js"></script></head>
 <body{% if pages_preview %} data-pages-preview{% endif %}><nav class="site-nav"><a class="wordmark" href="./">PawthFinder<span>宠物生活手册</span></a><div class="app-nav" aria-label="功能导航"><button type="button" data-view="home" aria-pressed="true">首页</button><button type="button" data-view="catalog" aria-pressed="false">认识伙伴</button><button type="button" data-view="match" aria-pressed="false">选宠问卷</button><button type="button" data-view="compare" aria-pressed="false">我的清单 <span id="compare-count">0</span></button><button type="button" data-view="community" aria-pressed="false">社区分享</button><button type="button" data-view="model" aria-pressed="false">模型实验室</button></div></nav>
-{% if pages_preview %}<p class="toast small">在线演示。运行源码中的 app.py 可提交问卷、发布社区动态、上传 PDF 和训练模型。</p>{% endif %}
+{% if pages_preview %}<p class="toast small">PawthFinder 在线入口 · 通过「选宠问卷」进入推荐服务。{% if hosted_app_url %} <a href="{{ hosted_app_url }}">打开完整在线版</a>{% endif %}</p>{% endif %}
 <section id="view-home" class="view home-view"><header class="home-intro"><div class="intro-copy"><p class="issue">给准备迎接新伙伴的你 / VOL. 01</p><h1>家里，<br>想多一个它。</h1><p class="intro-note">是陪你散步的狗，是占据窗台的猫，<br>还是一个安静的小邻居？<br>先认识它的日常，再想想你的生活。</p><button type="button" id="start-quiz" class="ink-button">从我的生活开始选择 <span>↗</span></button><p class="intro-small">一份关于时间、空间与陪伴的问卷。</p></div><div class="cover-art"><div class="pet-art art-0" role="img" aria-label="手绘猫咪"></div><div class="cover-caption"><span>MEET YOUR EVERYDAY COMPANY</span><p>陪伴这件小事，<br>值得认真想一想。</p></div></div></header>
 <div class="browse-heading"><div><p class="issue">THE LITTLE NEIGHBOURS</p><h2>先打个招呼。</h2></div><p>8 位真实的小邻居，和 1 位幻想伙伴。<br>点开看看，它们各自的生活。</p></div><div id="home-pets" class="home-pets"></div><aside class="home-note"><span>选宠之前</span><p>喜欢是开始。能不能在忙碌、搬家和假期里照顾好它，是更长久的决定。</p><button type="button" id="home-guide">了解自己的照护条件 →</button></aside></section>
 <p class="toast" id="toast" role="status"></p>
-<main id="view-match" class="view" hidden><section class="panel"><div class="section-title"><span>关于你的生活</span><h2>告诉我们你的日常</h2></div>
-<div class="preset-row"><span>演示问卷：</span><button type="button" data-preset="default">标准示例</button><button type="button" data-preset="busy">时间有限</button><button type="button" data-preset="active">户外爱好者</button></div><form id="quiz"><div class="grid">
+<main id="view-match" class="view" hidden>
+{% if pages_preview %}
+<section class="panel">
+  <div class="section-title"><h2>在线选宠问卷</h2></div>
+  {% if hosted_app_url %}
+  <p id="online-status" role="status">正在连接在线推荐服务…</p>
+  <a id="online-quiz" class="ink-button online-quiz-link" href="{{ hosted_app_url }}#match">直接打开在线问卷</a>
+  <button type="button" class="secondary" id="online-retry" hidden>重试连接</button>
+  {% else %}
+  <p id="online-status" role="status">在线推荐服务尚未连接。连接后可在这里打开问卷，获取个性化推荐。</p>
+  {% endif %}
+</section>
+{% endif %}
+<section class="panel"{% if pages_preview %} hidden{% endif %}><div class="section-title"><span>关于你的生活</span><h2>告诉我们你的日常</h2></div>
+<div class="preset-row"><span>演示问卷：</span><button type="button" data-preset="default">标准示例</button><button type="button" data-preset="busy">时间有限</button><button type="button" data-preset="active">户外爱好者</button></div><form id="quiz" novalidate><div class="grid">
 <label>可用照护空间（㎡）<input name="space" type="number" min="0" max="500" step="0.5" value="30" required></label>
 <label>每日照护时间（小时）<input name="time" type="number" min="0" max="12" step="0.1" value="2" required></label>
 <label>每月预算（港币）<input name="budget" type="number" min="0" max="10000" step="10" value="1000" required></label>
@@ -25,8 +38,8 @@
     <label><input name="live_insects" type="checkbox"> 可以准备和处理活饵昆虫</label>
   </div>
 </fieldset>
-<p class="small">教学演示：档案阈值为示例设定，并非专业标准。提交后问卷与结果会保存在本机 SQLite 数据库。</p><button id="submit" type="submit"{% if pages_preview %} disabled{% endif %}>看看适合我的伙伴 →</button><p id="error" role="alert"></p></form></section>
-<section class="results" aria-live="polite"><div class="section-title"><span>问卷结果</span><h2>你的匹配结果</h2></div><p id="summary">{% if pages_preview %}运行 app.py 后即可使用随附模型生成推荐。{% else %}完成左侧问卷，看看哪些伙伴可能适合你的日常。{% endif %}</p><div class="result-actions"><button type="button" id="export" class="secondary" disabled>下载推荐报告</button><button type="button" id="scenario-open" class="secondary" disabled>比较条件变化</button></div>
+<p class="small">教学演示：档案阈值为示例设定，并非专业标准。问卷、推荐和反馈会保存在当前应用的匿名会话记录中。</p><button id="submit" type="submit">看看适合我的伙伴 →</button><p id="quiz-status" class="small" role="status"></p><p id="error" role="alert"></p></form></section>
+<section id="match-results" class="results" aria-live="polite"{% if pages_preview %} hidden{% endif %}><div class="section-title"><span>问卷结果</span><h2>你的匹配结果</h2></div><p id="summary">完成问卷，看看哪些伙伴可能适合你的日常。</p><div class="result-actions"><button type="button" id="export" class="secondary" disabled>下载推荐报告</button><button type="button" id="scenario-open" class="secondary" disabled>比较条件变化</button></div>
 <div id="scenario-box" class="scenario-box" hidden><h3>如果照护条件改变了呢？</h3><p class="small">以当前显示的推荐问卷为基准，只调整下方三项；模拟不会写入历史。</p><form id="scenario-form"><div class="grid"><label>新月预算（港币）<input id="scenario-budget" type="number" min="0" max="10000" step="10" required></label><label>新每日时间（小时）<input id="scenario-time" type="number" min="0" max="12" step="0.1" required></label><label>新可用空间（㎡）<input id="scenario-space" type="number" min="0" max="500" step="0.5" required></label></div><button type="submit">计算变化</button></form><div id="scenario-result" aria-live="polite"></div><button type="button" id="scenario-apply" class="secondary" hidden>将模拟条件填回问卷</button></div>
 <div id="cards"></div><details id="excluded-panel" hidden><summary>查看未通过规则的宠物及原因</summary><div id="excluded"></div></details></section></main>
 <section class="view full-view" id="view-catalog" hidden>
@@ -210,11 +223,11 @@
   <div class="section-title"><span>训练与评估</span><h2>模型实验室</h2></div>
   <section class="panel training-panel" aria-labelledby="train-heading">
     <div class="training-heading">
-      <div><h3 id="train-heading">用你的评分数据训练</h3><p>{% if pages_preview %}可下载样表，训练与启用新模型请在本机运行 app.py。{% else %}选择 UTF-8 CSV 后先核对数据。点击「开始训练」后，系统在本机训练并启用新模型。{% endif %}</p></div>
+      <div><h3 id="train-heading">用你的评分数据训练</h3><p>{% if pages_preview or not allow_training %}可查看训练图表和下载评分样表。本地模型实验室支持数据上传与自训练。{% else %}选择 UTF-8 CSV 后先核对数据。点击「开始训练」后，系统训练并启用新模型。{% endif %}</p></div>
       <a class="secondary template-link" href="{{ './snapshot/ratings-example.csv' if pages_preview else '/api/training/template' }}" download="pawthfinder-ratings-example.csv">下载评分 CSV 样表</a>
     </div>
     <p class="small">至少 20 位匿名用户，score 为 0–1；同一用户可评价多类宠物。样表内含模拟评分，上传前请按需替换。</p>
-    <form id="training-upload" class="training-actions"{% if pages_preview %} hidden{% endif %}>
+    <form id="training-upload" class="training-actions"{% if pages_preview or not allow_training %} hidden{% endif %}>
       <label>评分 CSV<input name="dataset" id="training-file" type="file" accept=".csv,text/csv" required></label>
       <button type="submit" id="training-preview">预览数据</button>
     </form>

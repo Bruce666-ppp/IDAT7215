@@ -1,0 +1,28 @@
+services:
+  - name: idat7215-pawthfinder
+    type: web
+    runtime: docker
+    branch: main
+    region: singapore
+    plan: 1c-2g
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    disk:
+      name: pawthfinder-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PAWTH_DATA_DIR
+        value: /var/data
+      - key: PAWTH_SECRET
+        generateValue: true
+      - key: PAWTH_BEHIND_PROXY
+        value: "1"
+      - key: PAWTH_SECURE_COOKIES
+        value: "1"
+      - key: PAWTH_REQUIRE_MODEL
+        value: "1"
+      - key: PAWTH_ALLOW_TRAINING
+        value: "0"
+      - key: PAWTH_PAGES_ORIGIN
+        value: https://bruce666-ppp.github.io

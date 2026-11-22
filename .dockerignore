@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+node_modules
+**/__pycache__
+.pytest_cache
+_site
+.env
+.env.*
+**/*.pem
+**/*.key
+data/.session_secret
+data/*.sqlite3
+data/*.sqlite3-*
+data/feedback.csv
+data/training

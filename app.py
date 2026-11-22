@@ -8,13 +8,21 @@ from contextlib import closing
 from datetime import datetime,timezone
 from pathlib import Path
 from flask import Flask,Response,jsonify,render_template,request,session
+from werkzeug.middleware.proxy_fix import ProxyFix
 from community import register_community
 from core import BASE,PETS,DEFAULT,INPUT_DIM,USER_KEYS,validate
 from training_lab import MAX_UPLOAD_BYTES, TrainingLab, template_csv
 
 def create_app(db_path=None,engine=None):
     app=Flask(__name__)
-    db=Path(db_path or BASE/'data/pawthfinder.sqlite3'); db.parent.mkdir(parents=True,exist_ok=True)
+    data_dir=Path(os.environ.get('PAWTH_DATA_DIR', BASE/'data'))
+    db=Path(db_path) if db_path is not None else data_dir/'pawthfinder.sqlite3'
+    db.parent.mkdir(parents=True,exist_ok=True)
+    pages_origin=os.environ.get('PAWTH_PAGES_ORIGIN','').rstrip('/')
+    require_model=os.environ.get('PAWTH_REQUIRE_MODEL')=='1'
+    allow_training=os.environ.get('PAWTH_ALLOW_TRAINING','1')=='1'
+    if os.environ.get('PAWTH_BEHIND_PROXY')=='1':
+        app.wsgi_app=ProxyFix(app.wsgi_app,x_proto=1)
     secret=os.environ.get('PAWTH_SECRET')
     if not secret:
         keyfile=db.parent/'.session_secret'
@@ -24,11 +32,13 @@ def create_app(db_path=None,engine=None):
         except FileExistsError: pass
         secret=keyfile.read_text(encoding='utf-8').strip()
     app.config.update(SECRET_KEY=secret,
-                      MAX_CONTENT_LENGTH=16384,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Strict')
+                      MAX_CONTENT_LENGTH=16384,SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE='Lax',
+                      SESSION_COOKIE_SECURE=os.environ.get('PAWTH_SECURE_COOKIES')=='1')
     lab = TrainingLab(db.parent / 'training', engine)
     def connect():
         con=sqlite3.connect(str(db),timeout=10); con.execute('PRAGMA foreign_keys=ON'); return con
     with closing(connect()) as con, con:
+        con.execute('PRAGMA journal_mode=WAL')
         con.executescript("""
         CREATE TABLE IF NOT EXISTS runs(id TEXT PRIMARY KEY, owner TEXT NOT NULL, created_at TEXT NOT NULL,
         profile TEXT NOT NULL, result TEXT NOT NULL);
@@ -40,17 +50,43 @@ def create_app(db_path=None,engine=None):
         if 'owner' not in session: session['owner']=str(uuid.uuid4())
         return session['owner']
     register_community(app, connect, owner)
+
+    @app.before_request
+    def check_request_origin():
+        origin=request.headers.get('Origin')
+        if (request.method not in ('GET','HEAD','OPTIONS') and request.path.startswith('/api/')
+                and origin and origin != request.host_url.rstrip('/')):
+            return jsonify(error='请从 PawthFinder 应用页面提交请求。'),403
+
     @app.after_request
     def headers(response):
         response.headers['X-Content-Type-Options']='nosniff'
         response.headers['X-Frame-Options']='DENY'
         response.headers['Content-Security-Policy']="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
         response.headers['Cache-Control']='no-store'
+        if request.path=='/api/health' and pages_origin:
+            response.vary.add('Origin')
+            if request.headers.get('Origin')==pages_origin:
+                response.headers['Access-Control-Allow-Origin']=pages_origin
         return response
     @app.get('/')
     def index():
         owner()
-        return render_template('index.html')
+        return render_template('index.html', allow_training=allow_training)
+    @app.get('/api/health')
+    def health():
+        try:
+            with closing(connect()) as con:
+                con.execute('SELECT id FROM runs LIMIT 1').fetchone()
+        except sqlite3.Error:
+            app.logger.exception('Health check failed to read the SQLite database')
+            return jsonify(status='unavailable',database='unavailable'),503
+        recommender=lab.snapshot()
+        model_loaded=recommender.model is not None
+        return jsonify(status='ok' if model_loaded else 'degraded',database='ok',
+                       model_loaded=model_loaded,mode=recommender.source,model_version=recommender.version), (
+                           503 if require_model and not model_loaded else 200
+                       )
     @app.get('/api/info')
     def info():
         recommender = lab.snapshot()
@@ -63,7 +99,7 @@ def create_app(db_path=None,engine=None):
             raw=request.get_json(); u=validate(raw); result=lab.snapshot().recommend(u)
         except (ValueError,TypeError) as e: return jsonify(error=str(e)),400
         run_id=str(uuid.uuid4())
-        with connect() as con:
+        with closing(connect()) as con, con:
             con.execute('INSERT INTO runs VALUES (?,?,?,?,?)',(run_id,owner(),datetime.now(timezone.utc).isoformat(),
                 json.dumps(u),json.dumps(result,ensure_ascii=False)))
         return jsonify(run_id=run_id,**result)
@@ -75,7 +111,7 @@ def create_app(db_path=None,engine=None):
         run_id=body.get('run_id'); pet_id=body.get('pet_id'); rating=body.get('rating')
         if type(rating) is not int or not 1<=rating<=5 or not isinstance(run_id,str) or not isinstance(pet_id,str):
             return jsonify(error='run_id、pet_id 与 1–5 整数评分必填'),400
-        with connect() as con:
+        with closing(connect()) as con, con:
             row=con.execute('SELECT result FROM runs WHERE id=? AND owner=?',(run_id,owner())).fetchone()
             if row is None: return jsonify(error='找不到本会话推荐记录'),404
             allowed={p['id'] for p in json.loads(row[0])['recommendations']}
@@ -85,14 +121,14 @@ def create_app(db_path=None,engine=None):
         return jsonify(ok=True)
     @app.get('/api/history')
     def history():
-        with connect() as con:
+        with closing(connect()) as con:
             rows=con.execute('SELECT id,created_at,profile,result FROM runs WHERE owner=? ORDER BY created_at DESC LIMIT 20',(owner(),)).fetchall()
         return jsonify(items=[dict(run_id=r[0],created_at=r[1],profile=json.loads(r[2]),
             count=len(json.loads(r[3])['recommendations']),
             top=(json.loads(r[3])['recommendations'] or [None])[0],mode=json.loads(r[3])['mode']) for r in rows])
     @app.get('/api/history/<run_id>')
     def history_detail(run_id):
-        with connect() as con:
+        with closing(connect()) as con:
             r=con.execute('SELECT created_at,profile,result FROM runs WHERE id=? AND owner=?',(run_id,owner())).fetchone()
             if r is None: return jsonify(error='找不到本会话记录'),404
             ratings=dict(con.execute('SELECT pet_id,rating FROM feedback WHERE run_id=?',(run_id,)).fetchall())
@@ -132,6 +168,8 @@ def create_app(db_path=None,engine=None):
                         headers={'Content-Disposition': 'attachment; filename="pawthfinder-ratings-example.csv"'})
     @app.post('/api/training/preview')
     def training_preview():
+        if not allow_training:
+            return jsonify(error='当前服务开放随附模型的推理和图表。请在本地模型实验室上传训练数据。'),403
         request.max_content_length = MAX_UPLOAD_BYTES
         upload = request.files.get('dataset')
         if upload is None or not upload.filename or not upload.filename.lower().endswith('.csv'):
@@ -144,6 +182,8 @@ def create_app(db_path=None,engine=None):
             return jsonify(error=str(error)), 400
     @app.post('/api/training/<job_id>/start')
     def training_start(job_id):
+        if not allow_training:
+            return jsonify(error='当前服务开放随附模型的推理和图表。请在本地模型实验室训练新模型。'),403
         if not request.is_json:
             return jsonify(error='需要 application/json'), 415
         try:
@@ -160,6 +200,10 @@ def create_app(db_path=None,engine=None):
     def bad_request(e): return jsonify(error='请求不是有效 JSON'),400
     @app.errorhandler(413)
     def too_large(e): return jsonify(error='请求过大'),413
+    @app.errorhandler(sqlite3.OperationalError)
+    def database_unavailable(error):
+        app.logger.error('SQLite error while handling a request',exc_info=error)
+        return jsonify(error='暂时无法读取或保存记录，请稍后重试。'),503
     return app
 if __name__=='__main__':
     create_app().run(host='127.0.0.1',port=int(os.environ.get('PORT','8050')),debug=False)
