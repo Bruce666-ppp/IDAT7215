@@ -1,212 +1,214 @@
-# Pico 宠物生活手册
+# Pico Pet Lifestyle Guide
 
-Pico 是面向养宠准备者的宠物推荐与虚拟陪伴平台。通过中文照护档案、生活方式问卷和可解释推荐，帮助访客了解真实宠物和虚拟伙伴。
+**[Open the live Pico demo](https://idat7215-pawthfinder-demo.onrender.com/)**
 
-## 在线演示与完整应用
+Pico is a pet recommendation and virtual companionship platform for people preparing to care for a pet. Its care profiles, lifestyle quiz and explainable recommendations help visitors get to know real pets and virtual companions.
 
-GitHub Pages 保留公开入口、宠物档案、对比清单和 3D 桌宠。配置托管服务后，从入口点击「选宠问卷」会进入同源 Flask 应用。Flask 版直接执行随附 PyTorch 模型和专家规则，并支持反馈、社区写入与 PDF 附件。模型实验室的公开页面可查看训练图表，本地版可上传数据并训练。
+## Online Demo and Full Application
 
-部署、健康检查、持久盘及连接入口的步骤见 [部署说明](DEPLOYMENT.md)。
+GitHub Pages provides the public entry point, pet profiles, a comparison list and 3D desktop pets. Once hosting is configured, **Pet Quiz** opens the full Flask application on its own HTTPS origin. Flask runs the bundled PyTorch model and expert rules and supports feedback, community posting and PDF attachments. The public Model Lab shows training charts. The local version also supports uploading data and training.
 
-向仓库的 `main` 分支提交并推送更改后，GitHub Actions 会构建并发布 Pages。可在 GitHub 的 **Actions** 中查看 `pages.yml` 工作流。本地构建采用 `python build_pages.py`，输出到 `_site/`。
+See the [deployment guide](DEPLOYMENT.md) for hosting, health checks, persistent storage and linking the entry point.
 
-首页共 9 位伙伴：猫、狗、兔子、仓鼠、刺猬、豹纹守宫、虎皮鹦鹉、观赏鱼、奶龙。「认识伙伴」提供照护条件快捷筛选和首年开销试算。问卷加入独处时长、外宿晚数、饲养环境管理和活饵准备四题。
-奶龙是虚构的幻想伙伴。每次在「我的清单」点击 **Generate Pet** 都会播放全息开场。真实照护成本和推荐结果对应真实宠物。
+Pushing changes to `main` triggers GitHub Actions to build and publish the Pages site. See the `pages.yml` workflow under **Actions**. To build locally, run `python build_pages.py`. The output goes to `_site/`.
 
-随附的 `data/synthetic_v2` 是 6,000 位模拟用户、54,000 条配对的历史数据，包含当时的奶龙零标签占位。现有模型权重继续使用，线上推理、后续训练和新合成数据只处理 8 种真实宠物。新合成数据默认生成到 `data/synthetic_v3`。
+The homepage introduces nine companions: a cat, a dog, a rabbit, a hamster, a hedgehog, a leopard gecko, a budgerigar, an ornamental fish and Naylong. **Meet Companions** offers care filters and a first-year cost estimate. The quiz includes four questions about time spent alone, nights away, habitat management and preparation for live food.
+Naylong is a fictional companion. Selecting **Generate Pet** in **My List** plays the holographic introduction each time. Care costs and recommendation scores apply to real pets.
 
-已包含重新训练后的模型，可直接启动。新用户先按下方安装依赖；已有依赖的用户只需 python app.py，然后访问 http://127.0.0.1:8050 。
+The historical `data/synthetic_v2` dataset contains 6,000 simulated users and 54,000 pairs, including the old zero-label placeholder for Naylong. The existing weights still work. Online inference, further training and new synthetic data use only the eight real pets. New synthetic data defaults to `data/synthetic_v3`.
 
-## Pico 推荐系统
+The retrained model is bundled and ready to run. New users can install the dependencies below. With dependencies already installed, run `python app.py` and visit http://127.0.0.1:8050.
 
-V2 增强版：Flask + PyTorch 多层感知机 + 专家规则 + SQLite + 原生网页。
+## Pico Recommendation System
 
-### Pico 设计参数
+V2 combines Flask, a PyTorch multilayer perceptron, expert rules, SQLite and a vanilla web interface.
 
-全站变量集中在 [static/style.css](static/style.css)。导航、问卷、社区、模型图表和桌宠面板共享同一套颜色与组件规范。
+### Pico Design Tokens
 
-| 用途 | 变量 | 颜色 |
+The shared variables are defined in [static/style.css](static/style.css). Navigation, the quiz, the community, model charts and the desktop pet panel use the same colours and component styles.
+
+| Use | Variable | Colour |
 | --- | --- | --- |
-| 品牌蓝 | `--brand-primary` | `#5E84C3` |
-| 主要操作 | `--action` | `#426EAE` |
-| 操作悬停、链接及焦点 | `--action-hover` | `#355D99` |
-| 深蓝及主要文字 | `--ink` | `#304766` |
-| 浅蓝背景 | `--light-blue` | `#EEF4FB` |
-| 选中背景及装饰 | `--soft-blue` | `#E3EDFA` |
-| 浅橙点缀 | `--peach` | `#FFC995` |
-| 提示和虚拟陪伴背景 | `--soft-peach` | `#FCF1E7` |
-| 页面背景 | `--page` | `#F5F8FC` |
-| 卡片背景 | `--card` | `#FFFFFF` |
-| 次要文字 | `--muted` | `#65758B` |
-| 彩色背景上的次要文字 | `--muted-strong` | `#526783` |
-| 分割线 | `--line` | `#D9E3F0` |
-| 输入框边界 | `--control-border` | `#778DA9` |
-| 成功、警告、错误 | `--success` / `--warning` / `--danger` | `#246748` / `#754F2A` / `#A23549` |
+| Brand blue | `--brand-primary` | `#5E84C3` |
+| Primary actions | `--action` | `#426EAE` |
+| Hover, links and focus | `--action-hover` | `#355D99` |
+| Deep blue and primary text | `--ink` | `#304766` |
+| Light blue background | `--light-blue` | `#EEF4FB` |
+| Selection and decoration | `--soft-blue` | `#E3EDFA` |
+| Peach accent | `--peach` | `#FFC995` |
+| Notices and virtual companion background | `--soft-peach` | `#FCF1E7` |
+| Page background | `--page` | `#F5F8FC` |
+| Card background | `--card` | `#FFFFFF` |
+| Secondary text | `--muted` | `#65758B` |
+| Secondary text on tinted backgrounds | `--muted-strong` | `#526783` |
+| Dividers | `--line` | `#D9E3F0` |
+| Input borders | `--control-border` | `#778DA9` |
+| Success, warning and error | `--success` / `--warning` / `--danger` | `#246748` / `#754F2A` / `#A23549` |
 
-按钮、卡片、主要图片和输入框圆角分别为 12、16、20 和 10 px。基础间距以 4 px 为单位，按钮交互时长为 180 ms，并遵循系统减少动态效果设置。中文界面使用本地 Noto Sans SC 字形子集及系统中文字体回退。Poppins 用于英文标题和关键数值，Nunito Sans 用于英文正文和导航。字体与许可证均在 [static/brand/fonts](static/brand/fonts)，Logo 和 Favicon 来自原始 Pico 图形和字标。
+Buttons, cards, main images and inputs have corner radii of 12, 16, 20 and 10 px respectively. Base spacing uses 4 px increments. Button transitions run for 180 ms and respect the system's reduced-motion setting. Chinese text uses a local Noto Sans SC subset with system Chinese fonts as fallbacks. Poppins is used for English headings and key figures. Nunito Sans is used for English body text and navigation. Fonts and licences are in [static/brand/fonts](static/brand/fonts). The logo and favicon use the original Pico mark and wordmark.
 
-### 在模型实验室上传并训练
+### Upload and Train in Model Lab
 
-1. 下载评分 CSV 样表，并替换示例数据。需要至少 20 位匿名用户，评分范围为 0–1。同一用户可评价不同宠物，问卷资料须一致。
-2. 上传 UTF-8 CSV，点击「预览数据」核对样本、数据来源和按用户划分的结果。可用平铺问卷字段，或使用包含问卷 JSON 的 `profile` 列。宠物 ID 可从样表查询。旧版文件里的豚鼠和龙猫 ID 需要先删去相应行，或用适用于新档案的评分替换这些记录。
-3. 点击「开始训练」。训练成功后立即启用新模型，模型版本、数据指纹、训练时间及图表随之更新。重新提交问卷即可使用新模型。网页上传的 CSV、日志和权重保存在本机 `data/training/`，重启会恢复最近启用的模型。
+1. Download the sample ratings CSV and replace the sample records. Supply at least 20 anonymous users and scores from 0 to 1. Each user can rate multiple pets with the same quiz profile.
+2. Upload a UTF-8 CSV and select **Preview Data** to check the sample, data source and user-level split. The CSV can contain individual quiz fields or a `profile` column with quiz JSON. The sample lists the pet IDs. Remove rows with old guinea pig and chinchilla IDs, or replace them with ratings that apply to the current profiles.
+3. Select **Start Training**. When training succeeds, the new model becomes active immediately and the version, data fingerprint, training time and charts update. Submit the quiz again to use the new model. The application stores uploaded CSVs, logs and weights in `data/training/` and restores the most recently activated model on restart.
 
-## 1. 先明确它能做什么
-- 输入生活方式，检查 8 种真实宠物档案，给出适配排序、排除理由和照护提醒。所有档案都被排除时，可领养奶龙虚拟伙伴。
-- 深度模型确实执行训练、反向传播、权重保存与推理，不是用规则冒充模型。
-- 默认训练数据是程序模拟的，标签由规则生成。因此这是一套**规则蒸馏演示**，不能证明模型优于规则，也不能当成真实专家知识。
-- 不根据图片推荐，不使用大语言模型接口，不需要付费 API。
-- 本地缺少模型文件时可查看明确标注的专家规则备用评分。模型加载错误、计算异常或线上缺失模型会显示错误并提示重试。
-- 所有宠物档案中的时间、预算、空间、寿命承诺和等级均为教学假设。不能直接用作动物福利、医疗或真实领养判断标准。
+## 1. What Pico Does
+- Uses lifestyle information to evaluate eight real pet profiles and provide rankings, exclusion reasons and care reminders. Visitors can adopt Naylong as a virtual companion if the rules exclude every real pet.
+- The neural network runs training, backpropagation, weight persistence and inference.
+- Default training data is simulated, with labels generated by the rules. This **rule distillation demo** illustrates model behaviour on synthetic labels. It cannot establish that the model outperforms the rules or provide real expert knowledge.
+- The project uses lifestyle inputs and runs without image-based recommendations, language model APIs or paid APIs.
+- When the local model file is absent, Pico can show a clearly labelled expert-rule fallback score. A model load error, an inference failure or a missing hosted model displays an error and prompts a retry.
+- The time, budget, space, lifespan commitments and ratings in the pet profiles are assumptions for teaching. Use them only for demonstrations, with animal welfare, medical and adoption decisions based on qualified guidance.
 
-## 2. MacBook 本地启动（CPU 即可）
-建议 Python 3.11。打开终端，将终端切换到本 README 所在文件夹：
+## 2. Run Locally on a MacBook (CPU)
+Python 3.11 is recommended. In a terminal, change to the folder containing this README.
 
 ```bash
-cd /你的实际路径/PawthFinder
+cd /path/to/PawthFinder
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 python app.py
 ```
-浏览器访问 http://127.0.0.1:8050 。如果包含 `artifacts/model.pt`，启动会自动加载；否则先显示规则模式。
+Open http://127.0.0.1:8050. If `artifacts/model.pt` is present, the application loads it at startup. Otherwise it starts in rules mode.
 
-训练或重新训练：
+To train or retrain the model, run the following command.
 ```bash
 python train.py --users 1800 --epochs 80
 ```
-用命令行更新随附模型后，重启网页进程以读取磁盘上的权重。网页实验室训练在当前进程内启用，并在重启后继续使用已启用的模型。
+After updating the bundled model from the command line, restart the web process to load the saved weights. Training in Model Lab activates the model in the current process and retains it after a restart.
 
-端口冲突：
+If the default port is in use, run the following command.
 ```bash
 PORT=8051 python app.py
 ```
-此时访问 http://127.0.0.1:8051 。关闭服务按 Ctrl+C。
-Windows 激活环境：`.venv\Scripts\activate`；启动命令相同。
+Open http://127.0.0.1:8051. Press Ctrl+C to stop the service.
+On Windows, activate the environment with `.venv\Scripts\activate` and use the same start command.
 
-离线环境需预先安装依赖；网页不使用 CDN。AutoDL 上无需为此小模型租 GPU。如需远程访问，请使用 SSH 端口转发到本机 8050，不要直接暴露开发服务器。
+Install the dependencies before running offline. The site uses local assets. The model is small enough to run on a CPU on AutoDL. For remote access, forward local port 8050 over SSH and keep the development server private.
 
-## 3. 目录
+## 3. Project Structure
 ```text
-app.py                 Flask 路由、SQLite、会话隔离、参数校验
-core.py                输入规范、特征编码、硬规则、规则基线
-network.py             PyTorch MLP 网络
-engine.py              模型加载、推荐排序、规则解释
-decision.py            推荐状态、规则汇总、虚拟伙伴兜底
-train.py               模拟/真实数据训练、按用户划分、评估
-export_feedback.py     人工触发反馈导出
-requirements.txt       依赖版本范围
-requirements-tested.txt  本次实际测试环境的锁定版本（若提供）
-data/pets.json         可编辑的 9 位演示伙伴知识库
-artifacts/model.pt     演示模型权重
-artifacts/metrics.json  测试集结果与训练曲线数值
-data/pets.en.json      英文宠物档案展示文案
-templates/index.html   英式英文界面与问卷
-static/                样式与交互脚本
-tests/                 规则、梯度、模型兼容、API、会话测试
-DESIGN.md              完整设计与数据接入说明
+app.py                    Flask routes, SQLite, session isolation and input validation
+core.py                   Input schema, feature encoding, hard rules and rule baseline
+network.py                PyTorch multilayer perceptron
+engine.py                 Model loading, ranking and rule explanations
+decision.py               Recommendation states, rule summary and virtual companion fallback
+train.py                  Training on synthetic or real data, user-level splits and evaluation
+export_feedback.py        Manual feedback export
+requirements.txt          Dependency version ranges
+requirements-tested.txt   Pinned versions from testing, if supplied
+data/pets.json            Editable knowledge base for nine demo companions
+artifacts/model.pt        Trained weights for the demo
+artifacts/metrics.json    Test-set results and training-curve data
+data/pets.en.json         English pet profile copy
+templates/index.html      British English interface and quiz
+static/                   Styles and interaction scripts
+tests/                    Rule, gradient, model compatibility, API and session tests
+DESIGN.md                 Design and data integration guide
 ```
 
-## 4. 输入与输出
-问卷覆盖空间、每日时间、月预算、活动和噪声偏好、护理与经验、照护期限、过敏、居所许可、替代照护、离家作息及环境准备。预算以港币/月计算。0 元预算是有效输入，按宠物档案筛选。负数、缺漏或格式错误会提示更正。超出演示模型的数值范围会列出对应范围。
+## 4. Inputs and Outputs
+The quiz covers space, daily time, monthly budget, activity and noise preferences, grooming, experience, care commitment, allergies, housing permission, backup care, time away and habitat preparation. Budget is measured in Hong Kong dollars per month. A budget of HK$0 is valid and is checked against the pet profiles. Negative, missing or malformed values prompt correction. Values outside the demo model's supported range return the relevant limits.
 
-### 混合推荐与奶龙兜底流程
+### Hybrid Recommendations and the Naylong Fallback
 
 ```mermaid
 flowchart TD
-    Q["填写问卷"] --> V{"输入校验"}
-    V -->|"缺失、类型错误或负数"| I["INVALID_INPUT · 更正问卷"]
-    V -->|"超出已支持范围"| O["OUT_OF_DOMAIN · 显示范围与可选奶龙"]
-    V -->|"有效"| H{"检查模型可用性"}
-    H -->|"加载失败或必需模型缺失"| X["SYSTEM_ERROR · 提示重试"]
-    H -->|"模型就绪或本地明确使用规则备用"| F["按真实宠物档案执行硬性约束"]
-    F -->|"没有候选"| N["NO_ELIGIBLE_PET · 说明规则并推荐奶龙"]
-    F -->|"有候选"| P["仅对候选执行 PyTorch 推理或本地规则备用评分"]
-    P -->|"推理异常"| X
-    P -->|"成功"| R["REAL_PET_RECOMMENDATION · 排名与决策依据"]
-    N --> D["复用奶龙 3D 出场及桌宠交互"]
-    O -->|"选择虚拟伙伴"| D
+    Q["Complete the pet quiz"] --> V{"Validate inputs"}
+    V -->|"Missing, invalid type or negative"| I["INVALID_INPUT · Correct the quiz"]
+    V -->|"Outside the supported range"| O["OUT_OF_DOMAIN · Show limits and optional Naylong"]
+    V -->|"Valid"| H{"Check model availability"}
+    H -->|"Model fails to load or is required and missing"| X["SYSTEM_ERROR · Prompt a retry"]
+    H -->|"Model ready or labelled local rule fallback"| F["Apply hard constraints from real pet profiles"]
+    F -->|"No eligible pets"| N["NO_ELIGIBLE_PET · Explain the rules and recommend Naylong"]
+    F -->|"Eligible pets remain"| P["Run PyTorch inference or local rule fallback scoring on eligible pets"]
+    P -->|"Inference error"| X
+    P -->|"Success"| R["REAL_PET_RECOMMENDATION · Ranking and decision rationale"]
+    N --> D["Reuse Naylong's 3D introduction and desktop pet interactions"]
+    O -->|"Choose the virtual companion"| D
 ```
 
-PyTorch 的输入仍为 24 维，使用随附权重和原有特征变换。过敏详情仅用于专家系统，现有布尔特征 `allergy` 对应 `has_allergy`。硬性规则先筛选，模型对留下的真实宠物评分，页面同时显示规则基线。0–100 分表示演示条件下的相对适配度。现有指标未验证最低推荐分，因此当前版本不触发 `LOW_COMPATIBILITY`。
+PyTorch keeps the existing 24 input features, bundled weights and feature transformations. The expert system uses detailed allergy information. The model's existing Boolean `allergy` feature maps to `has_allergy`. Hard rules filter the candidates first, then the model ranks the remaining real pets. The page also shows the rule baseline. Scores of 0–100 express relative compatibility in demo conditions. `LOW_COMPATIBILITY` remains inactive pending validation of a minimum score.
 
-### 过敏输入与规则
+### Allergy Inputs and Rules
 
-勾选过敏可多选宠物，并补充其他过敏原或标记具体过敏原不确定。取消勾选会同时清理四个过敏字段。API 按稳定的宠物 `id` 匹配。新字段 `has_allergy`、`allergy_types`、`allergy_uncertain` 和 `other_allergy` 存在同一份问卷 JSON 中，历史记录及只有布尔 `allergy` 的旧请求仍可读取和提交。
+Visitors can select multiple pets when they indicate an allergy, specify other allergens or mark the allergen as uncertain. Clearing the allergy option clears all four related fields. The API matches stable pet `id` values. `has_allergy`, `allergy_types`, `allergy_uncertain` and `other_allergy` are stored in the same quiz JSON. Historical records and older requests with only the Boolean `allergy` remain supported for reading and submission.
 
-| 规则 | 执行条件 |
+| Rule | Condition |
 | --- | --- |
-| H01、H02 | 居所未许可，或无外出与紧急替代照护 |
-| H03、H04 | 档案要求环境管理或活饵准备，问卷尚未满足 |
-| H05–H09 | 空间、时间、预算、承诺期限、可接受噪声，分别低于对应档案要求 |
-| A01 | 用户明确选择的过敏对象匹配宠物档案，强制排除 |
-| A02 | 具体过敏原不确定或未明确选择时，沿用原有演示规则对有毛档案做保守排除 |
-| A03、A04 | 记录不确定情况与其他未映射过敏原，提示进一步确认 |
+| H01, H02 | Housing permission is absent, or backup care is unavailable for travel or emergencies |
+| H03, H04 | The profile requires habitat management or live food preparation, and the quiz answers fall short |
+| H05–H09 | Space, time, budget, commitment or tolerated noise is below the corresponding profile requirement |
+| A01 | An allergy object expressly selected by the visitor matches the profile, so the pet is excluded |
+| A02 | If the allergen is uncertain or unspecified, the existing demo rules conservatively exclude pets with fur |
+| A03, A04 | Record uncertainty or other unmapped allergens and prompt further confirmation |
 
-页面展示本次触发的规则编号、用户值与档案要求，以及候选数量、模型状态和实际排序。过敏风险因人而异，个体风险应向专业人员确认。[AAAAI 宠物过敏说明](https://www.aaaai.org/conditions-treatments/allergies/pet-allergy)
+The page shows triggered rule IDs, the user's answers, profile requirements, the eligible pet count, model status and the actual ranking. Allergy risk varies from person to person. Consult a qualified professional about individual risk. [AAAAI guidance on pet allergies](https://www.aaaai.org/conditions-treatments/allergies/pet-allergy)
 
-### 后端决策与结果页
+### Backend Decisions and Results
 
-- `REAL_PET_RECOMMENDATION` 展示真实候选和排序。真实候选可提交评分。
-- `NO_ELIGIBLE_PET` 展示硬规则、条件差异和改善建议，播放奶龙的全息出场。点击「领养我的虚拟伙伴」直接打开现有桌宠。
-- `OUT_OF_DOMAIN`（HTTP 422）展示适用范围，奶龙作为可选桌宠出现。
-- `INVALID_INPUT` 和 `SYSTEM_ERROR` 提示更正或重试。损坏的权重、线上模型缺失及推理异常返回 `SYSTEM_ERROR`。
+- `REAL_PET_RECOMMENDATION` shows eligible real pets in ranked order. Visitors can rate the recommended pets.
+- `NO_ELIGIBLE_PET` shows the hard rules, unmet care requirements and suggestions. Naylong plays its holographic introduction. **Adopt my virtual companion** opens the existing desktop pet.
+- `OUT_OF_DOMAIN` (HTTP 422) shows the supported ranges and offers Naylong as an optional desktop pet.
+- `INVALID_INPUT` and `SYSTEM_ERROR` prompt correction or retry. Corrupt weights, a missing hosted model and inference failures return `SYSTEM_ERROR`.
 
-`/api/recommend` 附带 `recommendation_status`、`recommended_pets`、`excluded_pets`、`exclusion_reasons`、`triggered_rules`、`fallback_triggered`、`fallback_reason`、`virtual_companion` 和 `model_inference_status`。原有 `recommendations` 和 `excluded` 字段仍可使用。虚拟伙伴单独返回，真实排名中只有真实宠物档案。
+`/api/recommend` returns `recommendation_status`, `recommended_pets`, `excluded_pets`, `exclusion_reasons`, `triggered_rules`, `fallback_triggered`, `fallback_reason`, `virtual_companion` and `model_inference_status`. The original `recommendations` and `excluded` fields remain available. The virtual companion is returned separately. Only real pet profiles appear in the ranking.
 
-没有合格候选时返回“暂无满足条件的宠物”，不强行推荐。
+If no pet qualifies, the application returns a message explaining that no pet meets the current conditions.
 
-## 5. 测试
+## 5. Tests
 ```bash
 python -m pytest -q
 ```
 
-在项目根目录用 Node 22+ 和 Chrome 运行 `node tests/browser_recommendation.mjs`，覆盖过敏字段清除、提交结果、超范围、奶龙预览与领养，以及断网后的页面恢复。可用 `PAWTH_TEST_PYTHON` 和 `PAWTH_TEST_CHROME` 指定可执行文件，也可用 `PAWTH_TEST_URL` 指定实际运行的问卷地址。
-`artifacts/metrics.json` 中 MSE 越低越好；NDCG@3 越高越好。排序指标仅纳入至少两种合格候选且理想增益大于零的用户，同时报告有效用户数量。
-模拟标签直接来自规则，因此规则基线 MSE 为零是预期行为，不是模型缺陷或真实性能证明。
+From the project root, run `node tests/browser_recommendation.mjs` with Node 22+ and Chrome. It covers clearing allergy fields, submitting the quiz, out-of-range inputs, previewing and adopting Naylong, and recovery after a dropped connection. Use `PAWTH_TEST_PYTHON` and `PAWTH_TEST_CHROME` to select executables and `PAWTH_TEST_URL` to target a running quiz.
+In `artifacts/metrics.json`, lower MSE and higher NDCG@3 are better. The ranking metric includes only users with at least two eligible pets and positive ideal gain. The report includes the number of eligible users.
 
-## 6. 使用真实数据
-CSV 列为 `user_id,profile,pet_id,score`；profile 是符合问卷字段规范的 JSON，score 为 0–1 的明确适配评分。详见 DESIGN.md。
+The rules generate the synthetic labels, so a rule-baseline MSE of zero is expected. Its meaning is limited to the synthetic evaluation.
+
+## 6. Use Real Data
+The CSV columns are `user_id,profile,pet_id,score`. The `profile` field holds JSON that follows the quiz schema, and `score` is an explicit compatibility rating from 0 to 1. See DESIGN.md for details.
 ```bash
 python train.py --csv data/ratings.csv --data-source real --epochs 100
 ```
-数据按 user_id 以约 70%/15%/15% 划分，避免同一用户出现在多个集合。至少 20 位用户只是保证程序可以划分，并非研究样本量建议。正式实验需要足量且代表性的数据。
+Records are split by `user_id` at approximately 70%/15%/15%, so each user belongs to one split. A minimum of 20 users allows the program to split the data. A formal study needs a sufficient, representative sample.
 
-网页反馈为 1–5 分，保存到本机 SQLite。显式导出：
+Website feedback uses a 1–5 scale and is stored in local SQLite. To export it, run the following command.
 ```bash
 python export_feedback.py
 ```
-导出会映射到 0–1。反馈不是自动可信标签：只包含被推荐宠物，存在曝光偏差；未评价不能当作负样本。需要人工清洗、专家审核和真实匿名用户标识；会话标识不等于可靠用户身份。
+The export maps scores to 0–1. Feedback reflects exposure bias because visitors rate only recommended pets. Exclude unrated pairs from negative labels. Preparing training data requires manual cleaning, expert review and reliable anonymised user IDs. A browser session ID alone cannot establish identity.
 
-## 7. 边界与数据管理
-这是使用匿名浏览器会话的课程项目。问卷、反馈、社区记录和 PDF 附件由应用保存，本地默认目录为 `data/`。免费线上演示在临时目录保留当次运行的数据，服务重启会清空临时记录。推荐与反馈按签名会话隔离，社区帖子面向该应用的访客。
-本地首次启动在数据目录生成 `.session_secret`。托管部署由平台生成 `PAWTH_SECRET`，重启时继续使用同一个值。运行数据库、密钥和用户上传的数据由服务保存。
+## 7. Scope and Data Management
+This course project uses anonymous browser sessions. The application stores quiz responses, feedback, community records and PDF attachments. The local default directory is `data/`. The free hosted demo uses temporary storage for the current run, and a restart clears temporary records. A signed session isolates recommendations and feedback. Community posts are visible to visitors of the application.
+On first local startup, the application generates `.session_secret` in the data directory. The hosting platform generates `PAWTH_SECRET` and reuses the same value across restarts. The service keeps the runtime database, secrets and uploaded data.
 
-实际发布前需核实知识库、获取数据授权、增加认证/限流/日志脱敏/HTTPS，并用真实用户与专业人士评估。本项目没有将合成评估伪装成真实业务效果。
+For a production release, verify the knowledge base, obtain data permissions, add authentication, rate limiting, log redaction and HTTPS, and evaluate the system with real users and professionals. The reported synthetic evaluation applies to the teaching demo.
 
-## 8. V2 新增功能与操作
+## 8. V2 Features and Use
 
-1. **宠物百科**：搜索名称、设置预算上限、按预算或时间排序；查看照护档案。
-2. **对比清单**：在百科或推荐卡片点击“加入对比”，最多 3 类；横向比较月/年预算、时间、空间、承诺期限、活动、护理等属性。清单只将宠物 ID 保存到浏览器本地，刷新后保留。
-3. **条件模拟**：先生成推荐，再点击“比较条件变化”，修改预算、时间、空间；对比前后合格状态和评分。模拟不创建历史记录；点击“将模拟条件填回问卷”后需重新提交，才会生成正式推荐。
-4. **社区分享**：浏览、搜索、点赞、收藏和评论帖子，发布动态或带链接和 PDF 附件的论文分享。
-5. **推荐报告下载**：生成 Markdown 文件，包含问卷、推荐、排除原因和限制说明。
-6. **模型实验室**：预览上传的数据，手动启动训练，查看当前模型的训练记录、损失曲线、配对分布、预测与标签对照及规则基线。
-7. **演示问卷**：标准示例、时间有限、户外爱好者三种预设，便于课堂展示。预设不是用户真实资料。
+1. **Pet catalogue**. Search by pet name, set a budget cap, sort by budget or care time, and read the care profiles.
+2. **Comparison list**. Select **Add to My List** from the catalogue or a recommendation card. Compare up to three pets by monthly and annual budget, care time, space, commitment, activity and grooming needs. The browser stores pet IDs locally so the list persists across refreshes.
+3. **Scenario comparison**. Generate a recommendation, then compare changes to budget, time and space. Review eligibility and scores before and after the changes. Scenarios are temporary. After selecting **Use these values in the quiz**, submit again to generate and save the updated recommendation.
+4. **Community**. Browse, search, like, save and comment on posts. Publish updates or research posts with links and PDF attachments.
+5. **Recommendation report**. Download a Markdown file with the quiz responses, recommendations, exclusion reasons and limitations.
+6. **Model Lab**. Preview uploaded data, start training manually and view the current model's training history, loss curves, pair distributions, predictions versus labels and rule baseline.
+7. **Demo profiles**. Use the Standard, Limited time and Outdoor enthusiast presets for classroom demonstrations. Each preset contains example data.
 
-更新源码后重新运行 app.py 并刷新网页。源码包含与新版特征匹配的随附模型。
+After updating the source, restart `app.py` and refresh the page. The source includes a bundled model compatible with the new features.
 
-## 9. V3 合成后端数据集与自训练模型
+## 9. V3 Synthetic Dataset and Model Training
 
-已附上 data/synthetic_v2/：6000 位模拟用户、54000 条用户—宠物配对、CSV 固定划分、SQLite 数据库、数据字典及完整生成脚本。
+The bundled `data/synthetic_v2/` directory contains 6,000 simulated users, 54,000 user–pet pairs, fixed CSV splits, a SQLite database, a data dictionary and the full generation scripts.
 
-推荐使用该版本的数据集训练命令：
+To train using this dataset, run the following command.
 ```bash
 python train.py --csv data/synthetic_v2/ratings.csv --data-source synthetic --epochs 100
 ```
+The default CSV source is synthetic. Reserve `--data-source real` for collected data. Files marked as synthetic are rejected when imported as real data.
+The trained `model.pt` and `metrics.json` are included. The website loads that model, and Model Lab shows the data fingerprint and split records.
+After command-line training, restart `app.py` to load the bundled model. Training in Model Lab switches the model when training completes.
 
-默认 CSV 来源按合成数据处理，只有真实采集数据才应显式传 --data-source real。带有 synthetic 来源标记的 CSV 无法冒充真实数据。
-已随包附上本次实际训练得到的 model.pt、metrics.json。网页加载该模型，模型实验室显示数据指纹与划分记录。
-命令行训练后可重启 app.py 读取随附模型。网页实验室训练完成后直接切换模型。
-
-详细字段、标签公式与 SQLite 查询方式见 data/synthetic_v2/DATASET_CARD.md。
+See `data/synthetic_v2/DATASET_CARD.md` for fields, label formulas and SQLite queries.
